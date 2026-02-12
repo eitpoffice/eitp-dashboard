@@ -1,0 +1,92 @@
+"use client";
+import { useState } from 'react';
+import { useAdmin } from '../../../context/AdminContext';
+import { MessageSquare, Clock, CheckCircle, Send } from 'lucide-react';
+
+export default function MyTasks() {
+  const { tasks, currentIntern, updateTaskStatus, addComment } = useAdmin();
+  const [activeTask, setActiveTask] = useState(null);
+  const [commentText, setCommentText] = useState("");
+
+  // Filter tasks for THIS intern only
+  const myTasks = tasks.filter(t => t.intern === currentIntern.name);
+
+  const handleSendComment = () => {
+    if (!commentText) return;
+    addComment(activeTask.id, currentIntern.name, commentText);
+    setCommentText("");
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-8rem)]">
+      {/* Task List */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-slate-100">
+          <h1 className="text-xl font-bold text-slate-900">My Assignments</h1>
+        </div>
+        <div className="overflow-y-auto p-4 space-y-3 flex-1">
+          {myTasks.length > 0 ? myTasks.map((task) => (
+            <div key={task.id} onClick={() => setActiveTask(task)} className={`p-4 rounded-xl border cursor-pointer transition ${activeTask?.id === task.id ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-slate-300'}`}>
+              <div className="flex justify-between mb-2">
+                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${task.priority === 'High' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-600'}`}>{task.priority}</span>
+                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${task.status === 'Done' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{task.status}</span>
+              </div>
+              <h3 className="font-bold text-slate-900">{task.title}</h3>
+              <p className="text-xs text-slate-500 mt-1">Due: {task.dueDate}</p>
+            </div>
+          )) : (
+            <div className="text-center p-8 text-slate-400">No tasks assigned to you yet.</div>
+          )}
+        </div>
+      </div>
+
+      {/* Task Details & Chat */}
+      {activeTask ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+          <div className="p-6 border-b border-slate-100">
+            <h2 className="text-xl font-bold text-slate-900">{activeTask.title}</h2>
+            
+            {/* Status Updater */}
+            <div className="flex gap-2 mt-4">
+              {['Pending', 'In Progress', 'Done'].map(status => (
+                <button 
+                  key={status}
+                  onClick={() => updateTaskStatus(activeTask.id, status)}
+                  className={`px-3 py-1 text-xs font-bold rounded-full border transition ${activeTask.status === status ? 'bg-slate-900 text-white border-slate-900' : 'text-slate-500 border-slate-200 hover:border-slate-400'}`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Chat Area */}
+          <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50">
+            {activeTask.comments.map((c, i) => (
+              <div key={i} className={`flex flex-col ${c.user === currentIntern.name ? 'items-end' : 'items-start'}`}>
+                <div className={`px-4 py-2 rounded-xl text-sm max-w-[80%] ${c.user === currentIntern.name ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none'}`}>
+                  <p className="text-[10px] font-bold opacity-70 mb-1">{c.user}</p>
+                  {c.text}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-4 bg-white border-t border-slate-100 flex gap-2">
+            <input 
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              className="flex-1 border border-slate-200 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900"
+              placeholder="Type update to admin..."
+            />
+            <button onClick={handleSendComment} className="p-2 bg-slate-900 text-white rounded-lg hover:bg-slate-700">
+              <Send size={18} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center text-slate-400 font-medium">Select a task to view details</div>
+      )}
+    </div>
+  );
+}

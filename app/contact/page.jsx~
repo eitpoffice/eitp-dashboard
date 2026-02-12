@@ -1,0 +1,72 @@
+import Navbar from '../../components/Navbar';
+import { Mail, Phone, MapPin } from 'lucide-react';
+
+export default function Contact() {
+  return (
+    <main className="min-h-screen bg-slate-50">
+      <Navbar />
+      
+      <div className="max-w-7xl mx-auto px-4 py-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+          
+          {/* Contact Info */}
+          <div>
+            <h1 className="text-4xl font-bold text-slate-900 mb-6">Get in Touch</h1>
+            <p className="text-slate-600 mb-8 text-lg">
+              Have questions about internships or training programs? Reach out to the EITP cell directly.
+            </p>
+            
+            <div className="space-y-6">
+              <div className="flex items-start">
+                <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center text-yellow-600 border border-slate-100">
+                  <Mail size={24} />
+                </div>
+                <div className="ml-4">
+                  <h3 className="font-bold text-slate-900">Email</h3>
+                  <p className="text-slate-500">eitp@rgukt.ac.in</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start">
+                <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center text-yellow-600 border border-slate-100">
+                  <Phone size={24} />
+                </div>
+                <div className="ml-4">
+                  <h3 className="font-bold text-slate-900">Phone</h3>
+                  <p className="text-slate-500">+91 98765 43210</p>
+                </div>
+              </div>
+
+              <div className="flex items-start">
+                <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center text-yellow-600 border border-slate-100">
+                  <MapPin size={24} />
+                </div>
+                <div className="ml-4">
+                  <h3 className="font-bold text-slate-900">Office</h3>
+                  <p className="text-slate-500">Room 101, Administrative Block,<br/>RGUKT AP Head Office.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Form */}
+          <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-100">
+            <form className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Student ID</label>
+                <input type="text" className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition" placeholder="R1XXXXX" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Your Message</label>
+                <textarea rows="4" className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition" placeholder="How can we help?"></textarea>
+              </div>
+              <button type="submit" className="w-full bg-slate-900 text-white font-bold py-4 rounded-lg hover:bg-slate-800 transition shadow-lg">
+                Send Message
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}

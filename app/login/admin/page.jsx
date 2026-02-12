@@ -1,0 +1,121 @@
+"use client";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Lock, AlertCircle, ChevronRight, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase'; // Ensure this path is correct
+import Link from 'next/link';
+
+export default function AdminLogin() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      // 1. Query the 'admins' table for matching email and password
+      const { data, error: supabaseError } = await supabase
+        .from('admins')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password) // Note: In production, use Supabase Auth or hashed passwords
+        .single();
+
+      if (supabaseError || !data) {
+        throw new Error('Invalid administrative credentials.');
+      }
+
+      // 2. Check if admin is active
+      if (data.status === 'Inactive') {
+        throw new Error('This administrative account has been deactivated.');
+      }
+
+      // 3. Set Admin Session in localStorage
+      // We store a 'token' for the Layout guard and the user info for the UI
+      localStorage.setItem('adminToken', `admin-${data.id}-${Date.now()}`);
+      localStorage.setItem('eitp_admin_user', JSON.stringify(data));
+
+      // 4. Redirect to Dashboard
+      router.push('/admin');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 relative overflow-hidden">
+      {/* Background Effects */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-yellow-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+      </div>
+
+      <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md relative z-10 border border-white/10">
+        <div className="text-center mb-10">
+          <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-slate-100 shadow-inner">
+            <Lock size={36} className="text-slate-900" />
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Restricted</h1>
+          <p className="text-slate-500 text-sm mt-1 font-medium">EITP Administrative Gateway</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Official ID</label>
+            <input 
+              type="email" 
+              required
+              className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all bg-slate-50/50 placeholder:text-slate-300"
+              placeholder="admin@rgukt.ac.in"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Secret Key</label>
+            <input 
+              type="password" 
+              required
+              className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all bg-slate-50/50 placeholder:text-slate-300"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-3 text-red-600 text-xs font-bold bg-red-50 p-4 rounded-2xl border border-red-100 animate-shake">
+              <AlertCircle size={18} /> {error}
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className={`w-full py-5 rounded-2xl font-black text-white transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs shadow-xl active:scale-95 ${
+              loading 
+                ? 'bg-slate-700 cursor-wait' 
+                : 'bg-slate-900 hover:bg-black hover:shadow-slate-200'
+            }`}
+          >
+            {loading ? <Loader2 className="animate-spin" size={20} /> : <>Verify Identity <ChevronRight size={18} /></>}
+          </button>
+        </form>
+
+        <div className="mt-8 text-center pt-8 border-t border-slate-50">
+          <Link href="/" className="text-xs font-bold text-slate-400 hover:text-slate-900 flex items-center justify-center gap-2 transition-colors group">
+            <span className="group-hover:-translate-x-1 transition-transform">←</span> Return to Public Portal
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}

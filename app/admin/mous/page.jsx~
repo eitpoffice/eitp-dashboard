@@ -1,0 +1,258 @@
+"use client";
+import { useState } from 'react';
+import { useAdmin } from '../../../context/AdminContext';
+import { Handshake, Trash2, Plus, Upload, FileText, X, Image as ImageIcon, Pencil, Save, Building2, Loader2 } from 'lucide-react';
+
+export default function AdminMoUs() {
+  const { mous, addMou, deleteMou, loading: globalLoading } = useAdmin();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Initial Form State
+  const initialFormState = {
+    partner: '',
+    scope: '',
+    date: '',
+    duration: '',
+    status: 'Active',
+    description: '',
+    // These store objects: { file: File, previewUrl: string, name: string }
+    document: null,
+    logo: null,
+    signingPhoto: null
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
+
+  // --- FILE HANDLER (Supabase Version) ---
+  const handleFileChange = (e, field) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFormData(prev => ({
+        ...prev,
+        [field]: { 
+          file: file, // Send raw file to Supabase
+          previewUrl: URL.createObjectURL(file), // Local preview
+          name: file.name 
+        }
+      }));
+    }
+  };
+
+  // --- SUBMIT HANDLER ---
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    // Prepare data for Context
+    // We send 'file' properties (logoFile, photoFile, docFile) explicitly
+    const submissionData = {
+      partner: formData.partner,
+      scope: formData.scope,
+      date: formData.date,
+      duration: formData.duration,
+      status: formData.status,
+      description: formData.description,
+      
+      // Files to upload
+      logoFile: formData.logo?.file,
+      photoFile: formData.signingPhoto?.file,
+      docFile: formData.document?.file,
+      
+      // Keep old URLs if editing and no new file selected (handled in Context usually, 
+      // but for simple addMou, we focus on new uploads)
+    };
+
+    if (isEditing) {
+      alert("Edit functionality requires backend update logic. For now, try deleting and re-adding.");
+      setLoading(false);
+      return; 
+      // Note: To implement full Edit with file replacement in Supabase, 
+      // you'd need an 'updateMou' function in AdminContext that handles 
+      // deleting old files and uploading new ones.
+    } else {
+      await addMou(submissionData);
+    }
+    
+    setLoading(false);
+    handleCancelEdit();
+  };
+
+  const handleEditClick = (mou) => {
+    setIsEditing(true);
+    setEditId(mou.id);
+    
+    // transform fetched data back to form format
+    setFormData({
+      partner: mou.partner,
+      scope: mou.scope,
+      date: mou.date,
+      duration: mou.duration,
+      status: mou.status,
+      description: mou.description,
+      // We can't turn a URL back into a File object, so we just show the preview
+      logo: mou.logo_url ? { previewUrl: mou.logo_url, name: 'Existing Logo' } : null,
+      signingPhoto: mou.photo_url ? { previewUrl: mou.photo_url, name: 'Existing Photo' } : null,
+      document: mou.doc_url ? { previewUrl: mou.doc_url, name: 'Existing Doc' } : null,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditId(null);
+    setFormData(initialFormState);
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-8">
+      
+      {/* --- FORM SECTION --- */}
+      <div className={`p-8 rounded-2xl shadow-sm border transition-colors duration-300 ${isEditing ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200'}`}>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="font-bold text-2xl text-slate-900 flex items-center gap-2">
+            {isEditing ? <><Pencil className="text-blue-600"/> Edit Collaboration</> : <><Handshake className="text-green-600"/> Add New Collaboration</>}
+          </h2>
+          {isEditing && (
+            <button type="button" onClick={handleCancelEdit} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1 font-bold bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">
+              <X size={14}/> Cancel
+            </button>
+          )}
+        </div>
+        
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Partner Name</label><input type="text" className="w-full p-3 border rounded-xl bg-white" value={formData.partner} onChange={e => setFormData({...formData, partner: e.target.value})} required /></div>
+          <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Scope</label><input type="text" className="w-full p-3 border rounded-xl bg-white" value={formData.scope} onChange={e => setFormData({...formData, scope: e.target.value})} required /></div>
+          <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Date</label><input type="date" className="w-full p-3 border rounded-xl bg-white" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required /></div>
+          <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Duration</label><input type="text" className="w-full p-3 border rounded-xl bg-white" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} required /></div>
+          <div className="space-y-1 md:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Status</label><select className="w-full p-3 border rounded-xl bg-white" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}><option>Active</option><option>Under Review</option><option>Expiring Soon</option></select></div>
+          
+          {/* 1. Logo Upload */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-500 uppercase flex justify-between">Partner Logo <span className="text-[10px] text-slate-400 normal-case">(Optional)</span></label>
+            <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-3 flex items-center justify-center cursor-pointer hover:bg-slate-100 transition h-[50px] bg-white">
+               {!formData.logo ? (
+                 <>
+                   <input type="file" onChange={(e) => handleFileChange(e, 'logo')} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*" />
+                   <span className="text-slate-500 text-xs flex items-center gap-2"><ImageIcon size={16}/> Upload Logo</span>
+                 </>
+               ) : (
+                 <div className="flex items-center gap-2 w-full px-2">
+                    <img src={formData.logo.previewUrl} className="w-6 h-6 object-contain rounded border" alt="preview" /> 
+                    <span className="text-xs text-slate-700 truncate flex-1">{formData.logo.name}</span>
+                    <button type="button" onClick={() => setFormData({...formData, logo: null})} className="p-1 hover:bg-red-100 text-red-500 rounded"><X size={14}/></button>
+                 </div>
+               )}
+            </div>
+          </div>
+
+          {/* 2. Signing Photo Upload */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-500 uppercase flex justify-between">Signing Photo <span className="text-[10px] text-slate-400 normal-case">(Optional)</span></label>
+            <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-3 flex items-center justify-center cursor-pointer hover:bg-slate-100 transition h-[50px] bg-white">
+               {!formData.signingPhoto ? (
+                 <>
+                   <input type="file" onChange={(e) => handleFileChange(e, 'signingPhoto')} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*" />
+                   <span className="text-slate-500 text-xs flex items-center gap-2"><ImageIcon size={16}/> Upload Photo</span>
+                 </>
+               ) : (
+                 <div className="flex items-center gap-2 w-full px-2">
+                    <img src={formData.signingPhoto.previewUrl} className="w-6 h-6 object-cover rounded border" alt="preview" />
+                    <span className="text-xs text-slate-700 truncate flex-1">{formData.signingPhoto.name}</span>
+                    <button type="button" onClick={() => setFormData({...formData, signingPhoto: null})} className="p-1 hover:bg-red-100 text-red-500 rounded"><X size={14}/></button>
+                 </div>
+               )}
+            </div>
+          </div>
+
+          {/* 3. Document Upload */}
+          <div className="space-y-1 md:col-span-2">
+            <label className="text-xs font-bold text-slate-500 uppercase flex justify-between">Agreement Doc <span className="text-[10px] text-slate-400 normal-case">(Optional)</span></label>
+            <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-3 flex items-center justify-center cursor-pointer hover:bg-slate-100 transition h-[50px] bg-white">
+               {!formData.document ? (
+                 <>
+                   <input type="file" onChange={(e) => handleFileChange(e, 'document')} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.doc,.docx" />
+                   <span className="text-slate-500 text-xs flex items-center gap-2"><Upload size={16}/> Upload PDF</span>
+                 </>
+               ) : (
+                 <div className="flex items-center gap-2 w-full px-2">
+                    <FileText size={16} className="text-blue-500"/> 
+                    <span className="text-xs text-slate-700 truncate flex-1">{formData.document.name}</span>
+                    <button type="button" onClick={() => setFormData({...formData, document: null})} className="p-1 hover:bg-red-100 text-red-500 rounded"><X size={14}/></button>
+                 </div>
+               )}
+            </div>
+          </div>
+
+          <div className="md:col-span-2 space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Description</label><textarea rows="3" className="w-full p-3 border rounded-xl bg-white" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} required></textarea></div>
+
+          <button 
+            disabled={loading} 
+            className={`md:col-span-2 py-3 text-white font-bold rounded-xl transition shadow-lg flex justify-center items-center gap-2 ${loading ? 'bg-slate-400 cursor-not-allowed' : (isEditing ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-900 hover:bg-slate-800')}`}
+          >
+            {loading ? <><Loader2 className="animate-spin" size={20}/> Uploading...</> : (isEditing ? <><Save size={20}/> Update MoU</> : <><Plus size={20}/> Sign & Publish MoU</>)}
+          </button>
+        </form>
+      </div>
+
+      {/* --- LIST VIEW --- */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+         <h3 className="font-bold text-lg mb-6 flex justify-between items-center">
+            Active Partnerships
+            {globalLoading && <Loader2 className="animate-spin text-slate-400" size={18} />}
+         </h3>
+         
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+           {mous.map(m => (
+             <div key={m.id} className={`p-5 border rounded-xl transition flex flex-col gap-3 group ${editId === m.id ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-blue-200 bg-white'}`}>
+               <div className="flex justify-between items-start">
+                 <div className="flex items-center gap-3">
+                   {/* Logo Display (Supabase URL) */}
+                   {m.logo_url ? (
+                     <img src={m.logo_url} alt="Logo" className="w-12 h-12 rounded-lg object-contain bg-white border border-slate-100 p-1" />
+                   ) : (
+                     <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-slate-100 text-slate-500">
+                       <Building2 size={24} />
+                     </div>
+                   )}
+                   
+                   <div>
+                     <h4 className="font-bold text-lg text-slate-900 leading-none">{m.partner}</h4>
+                     <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase mt-1 ${
+                       m.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                     }`}>{m.status}</span>
+                   </div>
+                 </div>
+                 
+                 <div className="flex gap-1">
+                   {/* Note: Edit button fills form but doesn't support file replacing in this simple version */}
+                   <button onClick={() => handleEditClick(m)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"><Pencil size={16}/></button>
+                   <button onClick={() => deleteMou(m.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 size={16}/></button>
+                 </div>
+               </div>
+               
+               <p className="text-sm text-slate-600 line-clamp-2">{m.description}</p>
+               
+               {/* Photo Preview */}
+               {m.photo_url && (
+                 <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                   <img src={m.photo_url} className="w-8 h-8 rounded object-cover" alt="Signing" />
+                   <span className="text-[10px] font-bold text-slate-500">Event Photo Attached</span>
+                 </div>
+               )}
+               
+               <div className="flex items-center justify-between text-xs text-slate-500 pt-3 border-t border-slate-200/50">
+                  <span>{m.duration} • {m.date}</span>
+                  {m.doc_url && <span className="flex items-center gap-1 text-blue-600 font-medium"><FileText size={12}/> Doc Attached</span>}
+               </div>
+             </div>
+           ))}
+           {!globalLoading && mous.length === 0 && <p className="col-span-full text-center text-slate-400 py-10">No MoUs found.</p>}
+         </div>
+      </div>
+
+    </div>
+  );
+}

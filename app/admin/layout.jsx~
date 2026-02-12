@@ -1,0 +1,136 @@
+"use client";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { 
+  LayoutDashboard, Users, ClipboardList, Bell, LogOut, 
+  FileText, Image, Handshake, FolderOpen, MessageSquare,
+  ShieldCheck, MessageCircle
+} from 'lucide-react';
+
+export default function AdminLayout({ children }) {
+  const router = useRouter();
+  const [status, setStatus] = useState('loading');
+  const [adminUser, setAdminUser] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    const savedAdmin = localStorage.getItem('eitp_admin_user');
+    
+    if (!token) {
+      setStatus('unauthenticated');
+      router.push('/login/admin');
+    } else {
+      if (savedAdmin) {
+        setAdminUser(JSON.parse(savedAdmin));
+      }
+      setStatus('authenticated');
+    }
+  }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('eitp_admin_user');
+    setStatus('unauthenticated');
+    router.push('/login/admin');
+  };
+
+  if (status === 'loading') {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500 font-medium text-sm animate-pulse tracking-tight">Verifying Admin Session...</p>
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') return null;
+
+  return (
+    <div className="flex h-screen bg-slate-50">
+      
+      {/* --- SIDEBAR --- */}
+      <aside className="w-72 bg-slate-900 text-white flex flex-col shadow-2xl z-20">
+         <div className="p-6 border-b border-slate-800 flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black">E</div>
+            <span className="text-xl font-black tracking-tighter">EITP Portal</span>
+         </div>
+
+         <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+             <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 px-4 mt-4">Overview</div>
+             
+             <Link href="/admin" className="flex items-center px-4 py-3 hover:bg-slate-800 rounded-xl font-bold transition-all">
+               <LayoutDashboard size={20} className="mr-3 text-blue-400" /> Dashboard
+             </Link>
+
+             <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 px-4 mt-6">Interns & Reports</div>
+
+             <Link href="/admin/interns" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all font-bold">
+               <Users size={20} className="mr-3" /> Intern Directory
+             </Link>
+
+             <Link href="/admin/submissions" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all font-bold">
+               <MessageCircle size={20} className="mr-3" /> Review Reports
+             </Link>
+
+             <Link href="/admin/tasks" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all font-bold">
+               <ClipboardList size={20} className="mr-3" /> Task Board
+             </Link>
+
+             <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 px-4 mt-6">Public Content</div>
+
+             <Link href="/admin/events" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all font-bold">
+                <FileText size={20} className="mr-3" /> Activities Manager
+             </Link>
+
+             <Link href="/admin/gallery" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all font-bold">
+                <Image size={20} className="mr-3" /> Gallery
+             </Link>
+
+             <Link href="/admin/mous" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all font-bold">
+                <Handshake size={20} className="mr-3" /> Partners / MoUs
+             </Link>
+
+             <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 px-4 mt-6">Communication</div>
+
+             <Link href="/admin/messages" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all font-bold">
+               <MessageSquare size={20} className="mr-3" /> Student Queries
+             </Link>
+
+             <Link href="/admin/notifications" className="flex items-center px-4 py-3 text-slate-300 hover:bg-slate-800 hover:text-white rounded-xl transition-all font-bold">
+                <Bell size={20} className="mr-3" /> Site Broadcasts
+             </Link>
+         </nav>
+
+         <div className="p-4 border-t border-slate-800">
+           <button onClick={handleLogout} className="flex items-center w-full px-4 py-3 text-red-400 hover:bg-red-950/30 rounded-xl transition-colors font-bold uppercase text-[10px] tracking-widest">
+             <LogOut size={20} className="mr-3" /> Sign Out
+           </button>
+         </div>
+      </aside>
+
+      {/* --- MAIN CONTENT AREA --- */}
+      <main className="flex-1 flex flex-col overflow-hidden h-screen">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm shrink-0 z-10">
+           <div className="flex items-center gap-2">
+             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+             <h2 className="text-slate-400 text-[10px] font-black uppercase tracking-widest">RGUKT EITP Administrative Hub</h2>
+           </div>
+           <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-sm font-black text-slate-900 leading-none">{adminUser?.name || 'Administrator'}</p>
+                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter mt-1">{adminUser?.role || 'Full Access'}</p>
+              </div>
+              <div className="w-10 h-10 bg-slate-900 rounded-2xl text-white flex items-center justify-center font-black shadow-lg shadow-slate-200 border border-white/10">
+                {adminUser?.name ? adminUser.name.charAt(0).toUpperCase() : 'A'}
+              </div>
+           </div>
+        </header>
+        
+        <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 custom-scrollbar">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}

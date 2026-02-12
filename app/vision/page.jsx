@@ -1,0 +1,78 @@
+import Navbar from '../../components/Navbar';
+import { Target, Compass, Zap } from 'lucide-react';
+
+export default function Vision() {
+  return (
+    <main className="min-h-screen bg-slate-50">
+      <Navbar />
+      
+      {/* Header */}
+      <div className="bg-slate-900 text-white py-20 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="max-w-7xl mx-auto px-4 relative z-10 text-center">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">Vision & Mission</h1>
+          <p className="text-xl text-slate-300 max-w-2xl mx-auto">
+            Defining the roadmap for the next generation of industry-ready engineers.
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-16 space-y-16">
+        {/* Vision Card */}
+        <div className="bg-white rounded-2xl p-8 shadow-xl border border-slate-100 flex flex-col md:flex-row items-center gap-8 transform hover:-translate-y-1 transition duration-300">
+          <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <Compass size={40} className="text-blue-600" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-3">Our Vision</h2>
+            <p className="text-slate-600 text-lg leading-relaxed">
+              "To be a premier center of excellence that cultivates a generation of engineers who are not just academically proficient but are innovative, industry-ready leaders capable of solving real-world challenges."
+            </p>
+          </div>
+        </div>
+
+        {/* Mission Card */}
+        <div className="bg-white rounded-2xl p-8 shadow-xl border border-slate-100 flex flex-col md:flex-row items-center gap-8 transform hover:-translate-y-1 transition duration-300">
+          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <Target size={40} className="text-yellow-600" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-3">Our Mission</h2>
+            <ul className="space-y-3 text-slate-600">
+              <li className="flex items-start">
+                <span className="mr-2 text-yellow-500">➤</span>
+                Bridge the gap between academic curriculum and industry requirements through strategic partnerships.
+              </li>
+              <li className="flex items-start">
+                <span className="mr-2 text-yellow-500">➤</span>
+                Provide hands-on training in emerging technologies like AI, IoT, and VLSI.
+              </li>
+              <li className="flex items-start">
+                <span className="mr-2 text-yellow-500">➤</span>
+                Facilitate high-impact internships that translate into full-time employment opportunities.
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Core Objectives */}
+        <div>
+          <h3 className="text-3xl font-bold text-slate-900 text-center mb-10">Core Objectives</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { title: "Skill Development", desc: "Continuous upskilling via workshops." },
+              { title: "Industry Connect", desc: "Regular interaction with corporate leaders." },
+              { title: "Innovation", desc: "Fostering a culture of research and startups." }
+            ].map((obj, idx) => (
+              <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 text-center hover:shadow-md transition">
+                <Zap size={32} className="mx-auto text-slate-800 mb-4" />
+                <h4 className="text-xl font-bold text-slate-900">{obj.title}</h4>
+                <p className="text-slate-500 mt-2">{obj.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}

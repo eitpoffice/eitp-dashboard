@@ -1,0 +1,104 @@
+"use client";
+import { useState } from 'react';
+import { useAdmin } from '../../../context/AdminContext';
+import { UserPlus, Search, Trash2, User, Loader2 } from 'lucide-react';
+
+export default function Interns() {
+  const { interns = [], addIntern, removeIntern } = useAdmin();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [newIntern, setNewIntern] = useState({ name: '', email: '', student_id: '', branch: 'CSE' }); // Changed 'id' to 'student_id'
+  const [loading, setLoading] = useState(false);
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      // Logic: Pass the object to AdminContext
+      await addIntern(newIntern);
+      
+      // Reset form only on success
+      setNewIntern({ name: '', email: '', student_id: '', branch: 'CSE' });
+      alert("Intern Registered Successfully!");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to add intern. Check console.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredInterns = interns.filter(i => 
+     (i.name?.toLowerCase().includes(searchTerm.toLowerCase())) || 
+     (i.student_id?.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+      {/* Add Form */}
+      <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200 h-fit">
+         <h2 className="font-bold text-xl text-slate-900 mb-6 flex items-center gap-2">
+           <UserPlus className="text-blue-600"/> Register Intern
+         </h2>
+         <form onSubmit={handleAdd} className="space-y-4">
+           <div>
+             <label className="text-xs font-bold text-slate-400 uppercase ml-1">Full Name</label>
+             <input type="text" placeholder="e.g. Rahul Kumar" className="w-full p-3 border rounded-xl mt-1 focus:ring-2 focus:ring-blue-500 outline-none transition" value={newIntern.name} onChange={e => setNewIntern({...newIntern, name: e.target.value})} required />
+           </div>
+           <div>
+             <label className="text-xs font-bold text-slate-400 uppercase ml-1">Student ID</label>
+             <input type="text" placeholder="e.g. R123456" className="w-full p-3 border rounded-xl mt-1 focus:ring-2 focus:ring-blue-500 outline-none transition" value={newIntern.student_id} onChange={e => setNewIntern({...newIntern, student_id: e.target.value})} required />
+           </div>
+           <div>
+             <label className="text-xs font-bold text-slate-400 uppercase ml-1">Email</label>
+             <input type="email" placeholder="name@example.com" className="w-full p-3 border rounded-xl mt-1 focus:ring-2 focus:ring-blue-500 outline-none transition" value={newIntern.email} onChange={e => setNewIntern({...newIntern, email: e.target.value})} required />
+           </div>
+           <div>
+             <label className="text-xs font-bold text-slate-400 uppercase ml-1">Branch</label>
+             <select className="w-full p-3 border rounded-xl bg-white mt-1 focus:ring-2 focus:ring-blue-500 outline-none transition" value={newIntern.branch} onChange={e => setNewIntern({...newIntern, branch: e.target.value})}>
+               <option>CSE</option><option>ECE</option><option>MECH</option><option>CIVIL</option><option>MME</option><option>CHEM</option>
+             </select>
+           </div>
+           <button disabled={loading} className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-800 transition shadow-lg shadow-slate-200">
+             {loading ? <Loader2 className="animate-spin"/> : 'Register Intern'}
+           </button>
+         </form>
+      </div>
+
+      {/* List Container */}
+      <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
+         <div className="flex justify-between items-center mb-6">
+            <h3 className="font-bold text-lg text-slate-900">Intern Directory</h3>
+            <div className="relative">
+               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+               <input type="text" placeholder="Search..." className="pl-10 pr-4 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            </div>
+         </div>
+
+         <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+           {filteredInterns.map(intern => (
+             <div key={intern.id} className="p-4 border border-slate-100 rounded-2xl flex justify-between items-center hover:bg-slate-50 transition group">
+               <div className="flex items-center gap-4">
+                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-bold text-lg">
+                   {intern.name ? intern.name.charAt(0) : <User size={20}/>}
+                 </div>
+                 <div>
+                   <p className="font-bold text-slate-900">{intern.name}</p>
+                   <p className="text-xs text-slate-500">{intern.student_id} • {intern.branch}</p>
+                 </div>
+               </div>
+               <button onClick={() => {if(confirm("Remove this intern?")) removeIntern(intern.id)}} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                  <Trash2 size={20}/>
+               </button>
+             </div>
+           ))}
+           {filteredInterns.length === 0 && (
+             <div className="text-center py-20 border-2 border-dashed border-slate-100 rounded-3xl">
+                <User size={40} className="mx-auto text-slate-200 mb-2"/>
+                <p className="text-slate-400">No interns matched your search.</p>
+             </div>
+           )}
+         </div>
+      </div>
+    </div>
+  );
+}

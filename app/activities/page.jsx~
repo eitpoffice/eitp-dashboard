@@ -1,0 +1,175 @@
+"use client";
+import { useState, useEffect, useMemo } from 'react';
+import Navbar from '@/components/Navbar';
+import { useAdmin } from '@/context/AdminContext';
+import { Zap, Mic, Code, Award, Calendar, Megaphone, ChevronDown, ChevronUp, Clock, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const slowFadeUp = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { 
+    opacity: 1, 
+    y: 0, 
+    transition: { duration: 0.8, ease: "easeOut" } 
+  }
+};
+
+function EventCard({ event, style, isUpcoming }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const Icon = style.icon;
+
+  return (
+    <motion.div 
+      layout
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-50px" }}
+      variants={slowFadeUp}
+      className={`bg-white p-8 rounded-[2rem] shadow-sm border transition-all duration-500 group relative overflow-hidden ${
+        isUpcoming ? 'border-blue-200 ring-2 ring-blue-500/5' : 'border-slate-200 opacity-90'
+      }`}
+    >
+      {/* Visual Indicator for Status */}
+      <div className={`absolute top-0 right-0 px-6 py-2 rounded-bl-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${
+        isUpcoming ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
+      }`}>
+        {isUpcoming ? <><Clock size={12}/> Upcoming</> : <><CheckCircle2 size={12}/> Completed</>}
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-8 relative z-10 pt-4 md:pt-0">
+        {/* Date Badge */}
+        <div className={`shrink-0 flex md:flex-col items-center justify-center w-full md:w-24 h-20 md:h-32 rounded-2xl border text-center px-4 shadow-inner ${
+          isUpcoming ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-100'
+        }`}>
+          <span className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">
+            {new Date(event.date).toLocaleString('default', { month: 'short' })}
+          </span>
+          <span className={`text-4xl font-black ${isUpcoming ? 'text-blue-600' : 'text-slate-800'}`}>
+            {new Date(event.date).getDate()}
+          </span>
+        </div>
+
+        {/* Content Section */}
+        <div className="flex-1">
+          <div className={`inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border ${style.bg} ${style.color} ${style.border}`}>
+            <Icon size={14} /> {event.type || 'General'}
+          </div>
+          
+          <h3 className="text-2xl font-black text-slate-900 mb-3 group-hover:text-blue-600 transition-colors duration-300">
+            {event.title}
+          </h3>
+          
+          <div className="relative">
+            <p className={`text-slate-600 leading-relaxed text-base transition-all duration-500 ${!isExpanded ? 'max-h-20 overflow-hidden line-clamp-3' : 'max-h-[1000px]'}`}>
+              {event.description}
+            </p>
+            {!isExpanded && event.description?.length > 150 && (
+              <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none"></div>
+            )}
+          </div>
+
+          {event.description?.length > 150 && (
+            <button 
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="mt-4 flex items-center gap-2 text-sm font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors group/btn"
+            >
+              {isExpanded ? (
+                <>Show Less <ChevronUp size={16} className="group-hover/btn:-translate-y-1 transition-transform" /></>
+              ) : (
+                <>More Details <ChevronDown size={16} className="group-hover/btn:translate-y-1 transition-transform" /></>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+export default function ActivitiesPage() {
+  const { events = [] } = useAdmin(); 
+  const [isMounted, setIsMounted] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'upcoming', 'completed'
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Filter and Sort Logic
+  const filteredAndSortedEvents = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 1. Sort by date descending (Recent first)
+    let processed = [...events].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // 2. Filter based on status
+    if (activeFilter === 'upcoming') {
+      return processed.filter(e => new Date(e.date) >= today);
+    } else if (activeFilter === 'completed') {
+      return processed.filter(e => new Date(e.date) < today);
+    }
+    
+    return processed;
+  }, [events, activeFilter]);
+
+  const getTypeStyles = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'workshop': return { icon: Zap, color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-100' };
+      case 'hackathon': return { icon: Code, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' };
+      case 'seminar': return { icon: Mic, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' };
+      case 'placement': return { icon: Award, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-100' };
+      default: return { icon: Calendar, color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-100' };
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-50 font-sans pb-20">
+      <Navbar />
+      
+      <motion.div initial="hidden" animate="visible" variants={slowFadeUp} className="pt-40 pb-16 text-center">
+        <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight">Recent Activities</h1>
+        <p className="text-slate-500 mt-6 max-w-2xl mx-auto text-lg leading-relaxed font-medium">
+           Bridging the gap between RGUKT and the industry.
+        </p>
+
+        {/* --- FILTER TABS --- */}
+        <div className="mt-12 flex justify-center p-1 bg-slate-200/50 w-fit mx-auto rounded-2xl border border-slate-200 shadow-inner">
+          {['all', 'upcoming', 'completed'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveFilter(tab)}
+              className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                activeFilter === tab 
+                ? 'bg-white text-blue-600 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
+      <div className="max-w-5xl mx-auto px-6 space-y-8">
+        <AnimatePresence mode='popLayout'>
+          {isMounted && filteredAndSortedEvents.length > 0 ? (
+            filteredAndSortedEvents.map((event) => (
+              <EventCard 
+                key={event.id} 
+                event={event} 
+                style={getTypeStyles(event.type)} 
+                isUpcoming={new Date(event.date) >= new Date().setHours(0,0,0,0)}
+              />
+            ))
+          ) : (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20 bg-white border-2 border-dashed border-slate-200 rounded-[3rem]">
+              <Megaphone size={40} className="mx-auto text-slate-300 mb-4" />
+              <p className="text-slate-900 font-black text-xl">No activities found in this category.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </main>
+  );
+}

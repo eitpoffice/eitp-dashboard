@@ -1,0 +1,77 @@
+"use client";
+import { useState } from 'react';
+import { useAdmin } from '../../../context/AdminContext';
+import { Globe, Plus, Trash2, Calendar } from 'lucide-react';
+
+export default function WebsiteEditor() {
+  const { events, addEvent, deleteEvent } = useAdmin();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newEvent, setNewEvent] = useState({ title: '', date: '', description: '', type: 'Workshop' });
+
+  const handlePublish = () => {
+    if(!newEvent.title) return;
+    addEvent({ ...newEvent, id: Date.now() }); // Published instantly
+    setIsModalOpen(false);
+    setNewEvent({ title: '', date: '', description: '', type: 'Workshop' });
+    alert("Event Published to Public Website!");
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Website Manager</h1>
+          <p className="text-slate-500 text-sm">You have permission to edit the Public Events page.</p>
+        </div>
+        <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 shadow-md flex items-center gap-2">
+          <Plus size={18} /> Publish New Event
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {events.map((event) => (
+          <div key={event.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative group">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                <Calendar size={24} />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase">{event.type}</span>
+                <h3 className="font-bold text-slate-900 mt-1">{event.title}</h3>
+                <p className="text-xs text-slate-500 mt-1">{event.date}</p>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => { if(confirm("Remove this event from public site?")) deleteEvent(event.id); }}
+              className="absolute top-4 right-4 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Publish Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-2xl w-96 shadow-2xl animate-in zoom-in-95">
+            <h3 className="font-bold text-lg mb-4">Publish Public Event</h3>
+            <div className="space-y-3">
+              <input className="w-full border p-2 rounded-lg" placeholder="Event Title" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} />
+              <input type="date" className="w-full border p-2 rounded-lg" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} />
+              <select className="w-full border p-2 rounded-lg bg-white" value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value})}>
+                <option>Workshop</option><option>Seminar</option><option>Hackathon</option>
+              </select>
+              <textarea className="w-full border p-2 rounded-lg" rows="3" placeholder="Description" value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})}></textarea>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-500 font-bold">Cancel</button>
+              <button onClick={handlePublish} className="px-4 py-2 bg-slate-900 text-white font-bold rounded-lg">Publish Live</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

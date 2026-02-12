@@ -1,0 +1,61 @@
+"use client";
+import { useState, useEffect } from 'react';
+import Navbar from '../../components/Navbar';
+import { useAdmin } from '../../context/AdminContext';
+import { motion } from 'framer-motion';
+import { Image as ImageIcon } from 'lucide-react';
+
+export default function GalleryPage() {
+  const { gallery } = useAdmin();
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Fix Hydration Mismatch: Only show data after component mounts on client
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // If not mounted yet, default to empty array (matches Server logic)
+  const displayGallery = isMounted ? gallery : [];
+
+  return (
+    <main className="min-h-screen bg-slate-50 font-sans pb-20">
+      <Navbar />
+      
+      <div className="pt-32 pb-12 text-center px-6">
+        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900">Campus Gallery</h1>
+        <p className="text-slate-500 mt-4 max-w-2xl mx-auto text-lg">
+           Moments captured by our students and faculty.
+        </p>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {displayGallery.length > 0 ? (
+          displayGallery.map((img, idx) => (
+            <motion.div 
+              key={img.id}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: idx * 0.1 }}
+              className="group relative aspect-[4/3] rounded-2xl overflow-hidden shadow-md cursor-pointer"
+            >
+              <img src={img.url} alt={img.title} className="w-full h-full object-cover transition duration-700 group-hover:scale-110" />
+              
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex flex-col justify-end p-6">
+                 <h3 className="text-white font-bold text-lg translate-y-4 group-hover:translate-y-0 transition duration-300">{img.title}</h3>
+                 <p className="text-slate-300 text-sm translate-y-4 group-hover:translate-y-0 transition duration-300 delay-75">
+                   Uploaded by {img.uploader} • {img.date}
+                 </p>
+              </div>
+            </motion.div>
+          ))
+        ) : (
+          <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 rounded-2xl">
+            <ImageIcon size={48} className="mx-auto text-slate-300 mb-4" />
+            <p className="text-slate-500">No images uploaded yet.</p>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

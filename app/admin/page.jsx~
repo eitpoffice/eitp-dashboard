@@ -1,0 +1,85 @@
+"use client";
+import { useAdmin } from '@/context/AdminContext';
+import { Users, CheckCircle, Mail, Bell, FileText, Download, ListChecks } from 'lucide-react';
+
+export default function AdminDashboard() {
+  const { addNotification, submissions = [], markAsReviewed, interns = [], tasks = [], contactMessages = [] } = useAdmin();
+
+  const resolvedCount = contactMessages.filter(m => m.status === 'resolved').length;
+  const pendingCount = contactMessages.filter(m => m.status !== 'resolved').length;
+
+  const handleBroadcast = () => {
+    const urgentMessage = "📢 ALERT: There will be a review on the works today. Please complete all tasks by today.";
+    addNotification({ 
+      subject: "Urgent Review Alert", 
+      type: 'urgent', 
+      message: urgentMessage 
+    });
+    alert("Broadcast sent successfully!");
+  };
+
+  return (
+    <main className="max-w-7xl mx-auto space-y-8 p-6">
+      <header>
+        <h1 className="text-3xl font-bold text-slate-900">Admin Dashboard</h1>
+        <p className="text-slate-500">Real-time EITP activity monitoring.</p>
+      </header>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { label: 'Total Interns', val: interns.length, icon: Users, color: 'bg-blue-600' },
+          { label: 'Active Tasks', val: tasks.filter(t => t.status !== 'Completed').length, icon: ListChecks, color: 'bg-yellow-500' },
+          { label: 'Resolved Queries', val: resolvedCount, icon: CheckCircle, color: 'bg-green-600' },
+          { label: 'Pending Queries', val: pendingCount, icon: Mail, color: 'bg-red-500' },
+        ].map((stat, idx) => (
+          <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white ${stat.color}`}>
+              <stat.icon size={24} />
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs font-bold uppercase">{stat.label}</p>
+              <p className="text-2xl font-bold text-slate-900">{stat.val}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Submissions */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm h-[500px] flex flex-col">
+          <h3 className="font-bold text-xl mb-6">Recent Submissions</h3>
+          <div className="space-y-3 overflow-y-auto flex-1 pr-2">
+            {submissions.map((sub) => (
+              <div key={sub.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="flex items-center gap-3">
+                  <FileText className="text-blue-500" size={20} />
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{sub.title}</p>
+                    <p className="text-[10px] text-slate-500">By {sub.intern_name} • {sub.date}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => markAsReviewed(sub.id)}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg transition ${sub.status === 'Reviewed' ? 'bg-green-100 text-green-600' : 'bg-blue-600 text-white'}`}
+                >
+                  {sub.status === 'Reviewed' ? 'Approved' : 'Review'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Broadcast Widget */}
+        <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-xl">
+          <Bell className="text-yellow-400 mb-4" size={32} />
+          <h3 className="text-2xl font-bold mb-2">Mass Broadcast</h3>
+          <p className="text-slate-400 mb-8 text-sm">Send an immediate alert to all interns.</p>
+          <button onClick={handleBroadcast} className="w-full py-4 bg-yellow-500 text-slate-900 font-bold rounded-2xl hover:bg-yellow-400 transition">
+            Send Urgent Alert
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}

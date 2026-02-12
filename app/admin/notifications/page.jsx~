@@ -1,0 +1,149 @@
+"use client";
+import { useState } from 'react';
+// FIXED IMPORT: Go up 3 levels (../../../)
+import { useAdmin } from '../../../context/AdminContext'; 
+import { Bell, Send, Clock, Trash2 } from 'lucide-react';
+
+export default function Notifications() {
+  const { notifications, addNotification, deleteNotification } = useAdmin(); 
+  
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [priority, setPriority] = useState('Normal');
+  const [isSending, setIsSending] = useState(false);
+
+  const handleSend = (e) => {
+    e.preventDefault();
+    if (!subject || !message) return;
+
+    setIsSending(true);
+
+    // Simulate Network Delay
+    setTimeout(() => {
+      // Determine Alert Type based on Priority
+      // High Priority = Urgent (Red Alert on Intern Dashboard)
+      const type = priority === 'High' ? 'urgent' : 'info';
+
+      addNotification({
+        subject: subject,
+        message: message,
+        priority: priority, 
+        type: type,         
+        audience: "All Interns",
+        date: new Date().toLocaleString()
+      });
+
+      setIsSending(false);
+      setSubject('');
+      setMessage('');
+      setPriority('Normal');
+      alert("Broadcast Sent Successfully!");
+    }, 800);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+      
+      {/* --- Sender Form --- */}
+      <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-slate-200 h-fit">
+        <h1 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+          <Bell className="text-yellow-500" /> Compose Broadcast
+        </h1>
+        
+        <form onSubmit={handleSend} className="space-y-6">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Subject</label>
+            <input 
+              value={subject} 
+              onChange={(e) => setSubject(e.target.value)} 
+              type="text" 
+              required
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 outline-none font-bold" 
+              placeholder="e.g. Server Maintenance Alert" 
+            />
+          </div>
+          
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Priority Level</label>
+            <div className="flex gap-2">
+              {['Normal', 'High'].map(p => (
+                <button 
+                  type="button" 
+                  key={p} 
+                  onClick={() => setPriority(p)} 
+                  className={`flex-1 py-3 rounded-xl text-sm font-bold border transition-colors ${
+                    priority === p 
+                      ? (p === 'High' ? 'bg-red-600 text-white border-red-600' : 'bg-slate-900 text-white border-slate-900') 
+                      : 'bg-white text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  {p} Priority
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Message Content</label>
+             <textarea 
+               value={message} 
+               onChange={(e) => setMessage(e.target.value)} 
+               rows="4" 
+               required
+               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 outline-none" 
+               placeholder="Type your message here..."
+             ></textarea>
+          </div>
+
+          <button 
+            disabled={isSending} 
+            type="submit" 
+            className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 flex justify-center items-center gap-2 transition disabled:opacity-50"
+          >
+            {isSending ? 'Sending...' : <><Send size={20} /> Send Broadcast</>}
+          </button>
+        </form>
+      </div>
+
+      {/* --- History List (Real-Time) --- */}
+      <div className="space-y-4">
+        <h2 className="font-bold text-slate-900 flex items-center gap-2"><Clock size={18}/> Broadcast History</h2>
+        
+        <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+          {notifications.length === 0 ? (
+            <div className="text-center py-10 border-2 border-dashed border-slate-100 rounded-xl">
+              <p className="text-slate-400 text-sm">No messages sent yet.</p>
+            </div>
+          ) : (
+            notifications.map((note) => (
+              <div key={note.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 group relative">
+                <div className="flex justify-between mb-1">
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                    note.type === 'urgent' || note.priority === 'High' 
+                      ? 'bg-red-100 text-red-600' 
+                      : 'bg-blue-50 text-blue-600'
+                  }`}>
+                    {note.priority || 'Normal'}
+                  </span>
+                  <span className="text-[10px] text-slate-400">{note.date ? note.date.split(',')[0] : 'Just now'}</span>
+                </div>
+                <h3 className="font-bold text-sm text-slate-900 mb-1">{note.subject}</h3>
+                <p className="text-xs text-slate-500 line-clamp-2">{note.message || "No content"}</p>
+                
+                {/* Delete Button */}
+                <button 
+                  onClick={() => deleteNotification(note.id)}
+                  className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                  title="Delete Broadcast"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+    </div>
+  );
+}

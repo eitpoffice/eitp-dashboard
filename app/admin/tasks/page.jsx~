@@ -1,0 +1,219 @@
+"use client";
+import { useState } from 'react';
+import { useAdmin } from '../../../context/AdminContext';
+import { Plus, User, X, Trash2, FileText, Upload } from 'lucide-react';
+
+export default function TaskManager() {
+  const { tasks, interns, addTask, deleteTask } = useAdmin();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Updated State: Added 'documents' array for multiple files
+  const [newTask, setNewTask] = useState({ 
+    title: '', 
+    intern: '', 
+    dueDate: '', 
+    priority: 'Medium',
+    documents: [] 
+  });
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      // Store file metadata (In a real app, you'd upload these to a server and get URLs)
+      const newDocs = files.map(file => ({
+        name: file.name,
+        size: (file.size / 1024).toFixed(1) + ' KB',
+        url: URL.createObjectURL(file) // Fake URL for demo
+      }));
+      setNewTask(prev => ({ ...prev, documents: [...prev.documents, ...newDocs] }));
+    }
+  };
+
+  const removeFile = (index) => {
+    setNewTask(prev => ({
+      ...prev,
+      documents: prev.documents.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleAddTask = () => {
+    if(!newTask.title || !newTask.intern) return;
+    
+    addTask({ 
+      ...newTask, 
+      assignedTo: newTask.intern 
+    });
+    
+    setIsModalOpen(false);
+    setNewTask({ title: '', intern: '', dueDate: '', priority: 'Medium', documents: [] });
+  };
+
+  return (
+    <div className="flex gap-6 h-[calc(100vh-8rem)]">
+      
+      {/* --- TASK LIST BOARD --- */}
+      <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h1 className="text-xl font-bold text-slate-900">Task Board</h1>
+          <button onClick={() => setIsModalOpen(true)} className="flex items-center px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition">
+            <Plus size={16} className="mr-2" /> Assign Task
+          </button>
+        </div>
+        
+        <div className="overflow-y-auto p-4 space-y-3 custom-scrollbar">
+          {tasks.length > 0 ? (
+            tasks.map((task) => (
+              <div key={task.id} className="group relative p-4 rounded-xl border border-slate-100 hover:border-blue-300 bg-white transition shadow-sm hover:shadow-md">
+                
+                {/* Header */}
+                <div className="flex justify-between mb-2">
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide ${
+                    task.priority === 'High' ? 'bg-red-100 text-red-600' : 
+                    task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
+                    'bg-green-100 text-green-700'
+                  }`}>
+                    {task.priority || 'Normal'} Priority
+                  </span>
+                  <span className="text-xs text-slate-400 font-medium">{task.dueDate || task.date}</span>
+                </div>
+                
+                {/* Title */}
+                <h3 className="font-bold text-slate-900 text-base mb-2 pr-8">{task.title}</h3>
+                
+                {/* Documents Indicator */}
+                {task.documents && task.documents.length > 0 && (
+                  <div className="flex items-center gap-1 text-xs text-blue-600 mb-3 bg-blue-50 w-fit px-2 py-1 rounded">
+                    <FileText size={12}/> {task.documents.length} Attachment{task.documents.length > 1 ? 's' : ''}
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                   <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                      <User size={12}/> 
+                   </div>
+                   {task.intern || task.assignedTo}
+                </div>
+
+                {/* Delete Button */}
+                <button 
+                  onClick={() => { if(confirm("Delete this task?")) deleteTask(task.id); }}
+                  className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                  title="Delete Task"
+                >
+                  <Trash2 size={16} />
+                </button>
+
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-20 text-slate-400">
+              <p>No tasks assigned.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* --- NEW TASK MODAL --- */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-2xl w-96 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-lg text-slate-900">Assign New Task</h3>
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Title */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Title</label>
+                <input type="text" placeholder="e.g., Complete React Module" className="w-full border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-100"
+                   value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} />
+              </div>
+              
+              {/* Assign To */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Assign To</label>
+                <select className="w-full border p-2 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-100"
+                   value={newTask.intern} onChange={e => setNewTask({...newTask, intern: e.target.value})}>
+                   <option value="">Select Intern</option>
+                   {interns.map(intern => (
+                     <option key={intern.id} value={intern.name}>{intern.name} ({intern.id})</option>
+                   ))}
+                </select>
+              </div>
+
+              {/* Due Date */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Due Date</label>
+                <input type="date" className="w-full border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-100"
+                   value={newTask.dueDate} onChange={e => setNewTask({...newTask, dueDate: e.target.value})} />
+              </div>
+              
+              {/* Priority */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Priority</label>
+                <div className="flex gap-2">
+                   {['Low', 'Medium', 'High'].map(p => (
+                     <button key={p} onClick={() => setNewTask({...newTask, priority: p})}
+                       className={`flex-1 py-2 text-xs font-bold border rounded-lg transition ${
+                         newTask.priority === p ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 hover:bg-slate-50'
+                       }`}>
+                       {p}
+                     </button>
+                   ))}
+                </div>
+              </div>
+
+              {/* --- DOCUMENTS UPLOAD (OPTIONAL & MULTIPLE) --- */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex justify-between">
+                  Attachments 
+                  <span className="text-[10px] text-slate-400 font-normal normal-case">(Optional, Multiple)</span>
+                </label>
+                
+                {/* Upload Box */}
+                <div className="relative border-2 border-dashed border-slate-200 rounded-lg p-4 text-center hover:bg-slate-50 transition cursor-pointer mb-2">
+                   <input 
+                     type="file" 
+                     multiple 
+                     onChange={handleFileChange} 
+                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                   />
+                   <div className="flex flex-col items-center justify-center text-slate-400">
+                      <Upload size={16} className="mb-1"/>
+                      <span className="text-xs font-bold">Click to Upload Files</span>
+                   </div>
+                </div>
+
+                {/* Selected Files List */}
+                {newTask.documents.length > 0 && (
+                  <div className="space-y-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    {newTask.documents.map((doc, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-xs p-1">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                           <FileText size={12} className="text-blue-500 shrink-0"/>
+                           <span className="truncate max-w-[180px] text-slate-700 font-medium">{doc.name}</span>
+                        </div>
+                        <button onClick={() => removeFile(idx)} className="text-slate-400 hover:text-red-500">
+                          <X size={14}/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            <div className="mt-8">
+              <button onClick={handleAddTask} className="px-4 py-3 bg-slate-900 text-white font-bold rounded-xl w-full shadow-lg hover:bg-slate-800 transition">
+                Confirm Assignment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
