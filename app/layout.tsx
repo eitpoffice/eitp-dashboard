@@ -1,6 +1,6 @@
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { AdminProvider } from "../context/AdminContext"; // Import the Brain
+import { AdminProvider } from "../context/AdminContext"; 
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -9,11 +9,16 @@ export const metadata = {
   description: "Engineering Internship & Training Program",
 };
 
-export default function RootLayout({ children }) {
+// --- FIX IS HERE: Added type definition for 'children' ---
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AdminProvider> {/* <--- WRAP EVERYTHING HERE */}
+        <AdminProvider>
           {children}
         </AdminProvider>
       </body>
