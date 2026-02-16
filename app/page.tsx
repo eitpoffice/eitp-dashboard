@@ -12,7 +12,7 @@ import {
   useSpring, useTransform, useScroll, useMotionTemplate, animate, Variants 
 } from 'framer-motion';
 
-/* --- ANIMATION VARIANTS --- */
+/* --- ANIMATION VARIANTS (Typed) --- */
 const fadeInUp: Variants = {
   hidden: { opacity: 0, y: 60 },
   visible: { 
@@ -30,7 +30,7 @@ const staggerContainer: Variants = {
   }
 };
 
-/* --- 1. 3D HOVER TILT CARD COMPONENT --- */
+/* --- 1. 3D HOVER TILT CARD COMPONENT (Typed) --- */
 interface TiltCardProps {
   children: React.ReactNode;
   className?: string;
@@ -76,7 +76,7 @@ function TiltCard({ children, className = "", style = {}, ...rest }: TiltCardPro
   );
 }
 
-/* --- 2. HIGH LEVEL STATS COUNTER --- */
+/* --- 2. HIGH LEVEL STATS COUNTER (Typed) --- */
 function StatCounter({ value, priority = false }: { value: string; priority?: boolean }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { margin: "-20px", once: false }); 
@@ -113,8 +113,10 @@ export default function Home() {
   const [tickerIndex, setTickerIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'running' | 'upcoming' | 'completed'>('running');
 
+  // Top Progress Bar Logic
   const { scrollYProgress } = useScroll();
 
+  // Global Spotlight Cursor Logic
   const globalX = useMotionValue(0);
   const globalY = useMotionValue(0);
   const spotlightBg = useMotionTemplate`radial-gradient(500px circle at ${globalX}px ${globalY}px, rgba(59, 130, 246, 0.15), transparent 80%)`;
@@ -129,13 +131,15 @@ export default function Home() {
     return () => window.removeEventListener("mousemove", handleGlobalMouseMove);
   }, [globalX, globalY]);
 
+  // --- DATE FORMATTING HELPER ---
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return ""; 
+    if (isNaN(d.getTime())) return "";
     return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
   };
 
+  // --- LOGIC: FLATTEN AND GET LATEST 5 INDIVIDUAL IMAGES ---
   const displayImages = useMemo(() => {
     if (!isMounted || !gallery.length) return [];
     const allPhotos: any[] = [];
@@ -154,6 +158,7 @@ export default function Home() {
       .slice(0, 5);
   }, [gallery, isMounted]);
 
+  // --- REFACTORED CATEGORIES FOR FILTERING ---
   const eventCategories = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -182,6 +187,7 @@ export default function Home() {
     };
   }, [events]);
 
+  // --- TICKER DATA LOGIC ---
   const tickerItems = useMemo(() => {
     let items: string[] = [];
     if (eventCategories.running.length > 0) {
@@ -204,18 +210,22 @@ export default function Home() {
   return (
     <main className="min-h-screen font-sans text-slate-900 bg-slate-50 overflow-x-hidden selection:bg-blue-600 selection:text-white pb-20">
       
+      {/* --- FEATURE 3: SCROLL PROGRESS BAR --- */}
       <motion.div 
         className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-600 via-cyan-400 to-yellow-400 origin-left z-[100]" 
         style={{ scaleX: scrollYProgress }} 
       />
       
+      {/* --- FEATURE 2: GLOBAL SPOTLIGHT CURSOR --- */}
       <motion.div
         className="pointer-events-none fixed inset-0 z-50 transition-opacity duration-300"
         style={{ background: spotlightBg }}
       />
 
+      {/* NAVBAR LOADS IMMEDIATELY */}
       <Navbar />
 
+      {/* --- SEQUENTIAL TICKER --- */}
       {isMounted && tickerItems.length > 0 && (
         <div className="mt-20 bg-slate-900 text-white py-3 border-b border-slate-800 relative z-40 h-12 flex items-center overflow-hidden">
           <div className="relative z-50 bg-slate-900 px-4 h-full flex items-center shadow-[20px_0_25px_rgba(15,23,42,1)]">
@@ -225,11 +235,11 @@ export default function Home() {
             <AnimatePresence mode="wait">
               <motion.div 
                 key={`ticker-${tickerIndex}`} 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                exit={{ opacity: 0, y: -20 }} 
-                transition={{ duration: 0.5 }} 
-                className="absolute whitespace-nowrap text-sm font-bold text-slate-100 flex items-center gap-3 pl-4"
+                initial={{ x: "100%" }} 
+                animate={{ x: "-110%" }} 
+                exit={{ x: "-110%" }} 
+                transition={{ duration: 6, ease: "linear" }} 
+                className="absolute whitespace-nowrap text-sm font-bold text-slate-100 flex items-center gap-3"
               >
                 <span className="text-blue-500 text-xl font-black">✦</span> {tickerItems[tickerIndex]}
               </motion.div>
@@ -238,7 +248,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* HERO SECTION */}
+      {/* --- HERO SECTION --- */}
       <section className={`relative pb-16 overflow-hidden ${(isMounted && tickerItems.length > 0) ? 'pt-20' : 'pt-32'}`}>
         <div className="absolute inset-0 z-0 opacity-40">
             <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
@@ -249,12 +259,11 @@ export default function Home() {
             <Award size={14} /> RGUKT - AP
           </motion.div>
           
-          {/* --- FIX IS HERE: Wrapped H1 in a div for entrance animation --- */}
           <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
             <motion.h1 
               className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-6 relative inline-block text-transparent bg-clip-text bg-slate-900"
               style={{
-                backgroundImage: 'linear-gradient(110deg, #1e293b 45%, #64748b 50%, #1e293b 55%)',
+                backgroundImage: 'linear-gradient(110deg, #1e293b 45%, #ffffff 50%, #1e293b 55%)',
                 backgroundSize: '250% 100%',
                 WebkitBackgroundClip: 'text',
                 backgroundClip: 'text',
@@ -280,7 +289,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SCROLLING IMAGE STRIP */}
+      {/* --- SCROLLING IMAGE STRIP --- */}
       {isMounted && (
         <section className="pb-16 bg-white border-b border-slate-200 overflow-hidden relative z-20">
           <div className="flex animate-scroll gap-6 px-6">
@@ -301,13 +310,13 @@ export default function Home() {
         </section>
       )}
 
-      {/* DEAN'S MESSAGE */}
+      {/* --- DEAN'S MESSAGE --- */}
       <section className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             initial="hidden" 
             whileInView="visible" 
-            viewport={{ once: false, amount: 0.3 }}
+            viewport={{ once: false, amount: 0.3 }} 
             variants={fadeInUp} 
             className="bg-slate-900 text-white rounded-[2rem] p-8 md:p-16 shadow-2xl flex flex-col md:flex-row items-center gap-12"
           >
@@ -326,7 +335,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* KEY PILLARS */}
+      {/* --- KEY PILLARS (WITH FEATURE 1: 3D TILT CARDS) --- */}
       <section className="py-20 bg-slate-50">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
@@ -351,7 +360,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* STATS SECTION */}
+      {/* --- STATS SECTION --- */}
       <div className="bg-slate-900 text-white border-y border-slate-800">
         <div className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
           {[
@@ -378,7 +387,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* EVENT SCHEDULE */}
+      {/* --- EVENT SCHEDULE (FIXED: Button on Side) --- */}
       <section className="py-24 max-w-5xl mx-auto px-6 bg-white">
         <div className="text-center mb-16">
           <motion.h2 
@@ -436,10 +445,12 @@ export default function Home() {
                     viewport={{ once: false, amount: 0.2 }}
                     transition={{ type: "spring", stiffness: 100, damping: 15 }}
                   >
-                    <TiltCard className="group relative w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-2xl transition-shadow duration-300 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-l-8 border-l-slate-900 hover:border-l-blue-600 overflow-hidden">
+                    {/* FIXED CONTAINER: flex-row ensures button is always on the right */}
+                    <TiltCard className="group relative w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-2xl transition-shadow duration-300 flex flex-row justify-between items-center gap-6 border-l-8 border-l-slate-900 hover:border-l-blue-600 overflow-hidden">
                       <div className="absolute top-0 right-0 w-20 h-20 bg-slate-50 rounded-bl-[3rem] -z-10 group-hover:bg-blue-50 transition-colors" />
                       
-                      <div className="flex-1 text-left">
+                      {/* Text Section (Flexible width) */}
+                      <div className="flex-1 min-w-0 text-left">
                         <div className="flex items-center gap-4 mb-3">
                           <span className="bg-slate-900 text-yellow-400 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-[0.2em]">
                              {activeTab}
@@ -456,8 +467,9 @@ export default function Home() {
                         </p>
                       </div>
                       
-                      <div className="w-full md:w-auto">
-                        <Link href="/activities" className="w-full md:w-auto bg-slate-900 text-white font-black px-8 py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg uppercase text-[10px] tracking-widest">
+                      {/* Button Section (Fixed to side) */}
+                      <div className="shrink-0">
+                        <Link href="/activities" className="bg-slate-900 text-white font-black px-6 py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg uppercase text-[10px] tracking-widest">
                           Details <ExternalLink size={14} />
                         </Link>
                       </div>
