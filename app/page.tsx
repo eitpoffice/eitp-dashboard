@@ -7,14 +7,12 @@ import {
   ArrowRight, Calendar, MapPin, Users, TrendingUp, Quote, 
   Award, BookOpen, Briefcase, Rocket, ExternalLink
 } from 'lucide-react';
-// --- FIX 1: Import 'Variants' type ---
 import { 
   motion, AnimatePresence, useInView, useMotionValue, 
   useSpring, useTransform, useScroll, useMotionTemplate, animate, Variants 
 } from 'framer-motion';
 
-/* --- ANIMATION VARIANTS (FIXED TYPES) --- */
-// --- FIX 2: Apply the 'Variants' type annotation ---
+/* --- ANIMATION VARIANTS --- */
 const fadeInUp: Variants = {
   hidden: { opacity: 0, y: 60 },
   visible: { 
@@ -251,22 +249,24 @@ export default function Home() {
             <Award size={14} /> RGUKT - AP
           </motion.div>
           
-          <motion.h1 
-            initial="hidden" animate="visible" variants={fadeInUp}
-            className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-6 relative inline-block text-transparent bg-clip-text bg-slate-900"
-            style={{
-              backgroundImage: 'linear-gradient(110deg, #1e293b 45%, #64748b 50%, #1e293b 55%)',
-              backgroundSize: '250% 100%',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              color: 'transparent'
-            }}
-            animate={{ backgroundPosition: ["100% 0%", "-100% 0%"] }}
-            transition={{ backgroundPosition: { repeat: Infinity, duration: 4, ease: "linear" } }}
-          >
-            Entrepreneurship Incubation <br />
-            Training & Placements
-          </motion.h1>
+          {/* --- FIX IS HERE: Wrapped H1 in a div for entrance animation --- */}
+          <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
+            <motion.h1 
+              className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-6 relative inline-block text-transparent bg-clip-text bg-slate-900"
+              style={{
+                backgroundImage: 'linear-gradient(110deg, #1e293b 45%, #64748b 50%, #1e293b 55%)',
+                backgroundSize: '250% 100%',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent'
+              }}
+              animate={{ backgroundPosition: ["100% 0%", "-100% 0%"] }}
+              transition={{ backgroundPosition: { repeat: Infinity, duration: 4, ease: "linear" } }}
+            >
+              Entrepreneurship Incubation <br />
+              Training & Placements
+            </motion.h1>
+          </motion.div>
           
           <motion.p initial="hidden" animate="visible" variants={fadeInUp} className="text-lg md:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed mb-10 font-medium">
             Bridging the gap between academic potential and industrial success. We cultivate innovation through world-class training and real-time projects.
