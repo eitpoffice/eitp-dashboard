@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar'; 
 import { useAdmin } from '@/context/AdminContext'; 
@@ -30,8 +30,15 @@ const staggerContainer = {
   }
 };
 
-/* --- 1. 3D HOVER TILT CARD COMPONENT --- */
-function TiltCard({ children, className = "", style = {}, ...rest }) {
+/* --- 1. 3D HOVER TILT CARD COMPONENT (FIXED TYPES) --- */
+interface TiltCardProps {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  [key: string]: any;
+}
+
+function TiltCard({ children, className = "", style = {}, ...rest }: TiltCardProps) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const mouseXSpring = useSpring(x, { stiffness: 400, damping: 30 });
@@ -39,7 +46,7 @@ function TiltCard({ children, className = "", style = {}, ...rest }) {
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["8deg", "-8deg"]);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-8deg", "8deg"]);
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const width = rect.width;
     const height = rect.height;
@@ -58,7 +65,7 @@ function TiltCard({ children, className = "", style = {}, ...rest }) {
     <motion.div
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      style={{ rotateX, rotateY, transformStyle: "preserve-3d", ...style }}
+      style={{ rotateX, rotateY, transformStyle: "preserve-3d", ...style } as any}
       className={className}
       {...rest}
     >
@@ -69,14 +76,13 @@ function TiltCard({ children, className = "", style = {}, ...rest }) {
   );
 }
 
-/* --- 2. HIGH LEVEL STATS COUNTER --- */
-function StatCounter({ value, priority = false }) {
+/* --- 2. HIGH LEVEL STATS COUNTER (FIXED TYPES) --- */
+function StatCounter({ value, priority = false }: { value: string; priority?: boolean }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { margin: "-20px", once: false }); 
   const count = useMotionValue(0);
   const displayValue = useTransform(count, (latest) => Math.floor(latest));
 
-  // Extract number and suffix safely
   const numberMatch = value.match(/\d+/);
   const numericValue = numberMatch ? parseInt(numberMatch[0]) : 0;
   const suffix = value.replace(/\d/g, '');
@@ -87,7 +93,7 @@ function StatCounter({ value, priority = false }) {
         duration: priority ? 1 : 2.5, 
         ease: "easeOut" 
       });
-      return controls.stop;
+      return () => controls.stop();
     } else {
       count.set(0);
     }
@@ -105,19 +111,17 @@ export default function Home() {
   const { events = [], gallery = [], customTicker = [] } = useAdmin();
   const [isMounted, setIsMounted] = useState(false);
   const [tickerIndex, setTickerIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState('running');
+  const [activeTab, setActiveTab] = useState<'running' | 'upcoming' | 'completed'>('running');
 
-  // Top Progress Bar
   const { scrollYProgress } = useScroll();
 
-  // Spotlight Cursor
   const globalX = useMotionValue(0);
   const globalY = useMotionValue(0);
   const spotlightBg = useMotionTemplate`radial-gradient(500px circle at ${globalX}px ${globalY}px, rgba(59, 130, 246, 0.15), transparent 80%)`;
 
   useEffect(() => {
     setIsMounted(true);
-    const handleGlobalMouseMove = (e) => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
       globalX.set(e.clientX);
       globalY.set(e.clientY);
     };
@@ -125,21 +129,19 @@ export default function Home() {
     return () => window.removeEventListener("mousemove", handleGlobalMouseMove);
   }, [globalX, globalY]);
 
-  // Date Helper
-  const formatDate = (dateStr) => {
+  const formatDate = (dateStr: string) => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return ""; // Safety check
+    if (isNaN(d.getTime())) return ""; 
     return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
   };
 
-  // Image Logic
   const displayImages = useMemo(() => {
     if (!isMounted || !gallery.length) return [];
-    const allPhotos = [];
-    gallery.forEach((entry) => {
+    const allPhotos: any[] = [];
+    gallery.forEach((entry: any) => {
       const urls = entry.url ? entry.url.split(',') : [];
-      urls.forEach((url) => {
+      urls.forEach((url: string) => {
         allPhotos.push({
           ...entry,
           singleUrl: url.trim(),
@@ -152,19 +154,19 @@ export default function Home() {
       .slice(0, 5);
   }, [gallery, isMounted]);
 
-  // Event Categories
   const eventCategories = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayTime = today.getTime();
-    const upcoming = []; const running = []; const completed = [];
+    const upcoming: any[] = []; 
+    const running: any[] = []; 
+    const completed: any[] = [];
 
-    events.forEach((e) => {
+    events.forEach((e: any) => {
       const eDate = new Date(e.date);
       eDate.setHours(0, 0, 0, 0);
       const eTime = eDate.getTime();
       
-      // Safety check for invalid dates
       if(isNaN(eTime)) return;
 
       if (eTime === todayTime) running.push(e);
@@ -172,7 +174,7 @@ export default function Home() {
       else completed.push(e);
     });
 
-    const sortByDateDesc = (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime();
+    const sortByDateDesc = (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime();
     return {
       running: running.sort(sortByDateDesc),
       upcoming: upcoming.sort(sortByDateDesc), 
@@ -180,14 +182,13 @@ export default function Home() {
     };
   }, [events]);
 
-  // Ticker Logic
   const tickerItems = useMemo(() => {
-    let items = [];
+    let items: string[] = [];
     if (eventCategories.running.length > 0) {
-      eventCategories.running.forEach((e) => items.push(`ONGOING: ${e.title} (${formatDate(e.date)})`));
+      eventCategories.running.forEach((e: any) => items.push(`ONGOING: ${e.title} (${formatDate(e.date)})`));
     }
     if (Array.isArray(customTicker)) {
-      customTicker.forEach((t) => { if (t.value?.trim()) items.push(t.value); });
+      customTicker.forEach((t: any) => { if (t.value?.trim()) items.push(t.value); });
     }
     return items;
   }, [eventCategories.running, customTicker]);
@@ -203,13 +204,11 @@ export default function Home() {
   return (
     <main className="min-h-screen font-sans text-slate-900 bg-slate-50 overflow-x-hidden selection:bg-blue-600 selection:text-white pb-20">
       
-      {/* FEATURE 3: SCROLL PROGRESS BAR */}
       <motion.div 
         className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-600 via-cyan-400 to-yellow-400 origin-left z-[100]" 
         style={{ scaleX: scrollYProgress }} 
       />
       
-      {/* FEATURE 2: GLOBAL SPOTLIGHT CURSOR */}
       <motion.div
         className="pointer-events-none fixed inset-0 z-50 transition-opacity duration-300"
         style={{ background: spotlightBg }}
@@ -217,7 +216,6 @@ export default function Home() {
 
       <Navbar />
 
-      {/* SEQUENTIAL TICKER */}
       {isMounted && tickerItems.length > 0 && (
         <div className="mt-20 bg-slate-900 text-white py-3 border-b border-slate-800 relative z-40 h-12 flex items-center overflow-hidden">
           <div className="relative z-50 bg-slate-900 px-4 h-full flex items-center shadow-[20px_0_25px_rgba(15,23,42,1)]">
@@ -398,7 +396,7 @@ export default function Home() {
             variants={fadeInUp} 
             className="flex justify-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit mx-auto border border-slate-200"
           >
-            {['running', 'upcoming', 'completed'].map((tab) => (
+            {['running', 'upcoming', 'completed'].map((tab: any) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -428,7 +426,7 @@ export default function Home() {
               className="space-y-5"
             >
               {eventCategories[activeTab].length > 0 ? (
-                eventCategories[activeTab].map((e) => (
+                eventCategories[activeTab].map((e: any) => (
                   <motion.div 
                     key={e.id}
                     initial={{ opacity: 0, y: 30 }}
