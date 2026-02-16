@@ -7,13 +7,15 @@ import {
   ArrowRight, Calendar, MapPin, Users, TrendingUp, Quote, 
   Award, BookOpen, Briefcase, Rocket, ExternalLink
 } from 'lucide-react';
+// --- FIX 1: Import 'Variants' type ---
 import { 
   motion, AnimatePresence, useInView, useMotionValue, 
-  useSpring, useTransform, useScroll, useMotionTemplate, animate 
+  useSpring, useTransform, useScroll, useMotionTemplate, animate, Variants 
 } from 'framer-motion';
 
-/* --- ANIMATION VARIANTS --- */
-const fadeInUp = {
+/* --- ANIMATION VARIANTS (FIXED TYPES) --- */
+// --- FIX 2: Apply the 'Variants' type annotation ---
+const fadeInUp: Variants = {
   hidden: { opacity: 0, y: 60 },
   visible: { 
     opacity: 1, 
@@ -22,7 +24,7 @@ const fadeInUp = {
   }
 };
 
-const staggerContainer = {
+const staggerContainer: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -30,7 +32,7 @@ const staggerContainer = {
   }
 };
 
-/* --- 1. 3D HOVER TILT CARD COMPONENT (FIXED TYPES) --- */
+/* --- 1. 3D HOVER TILT CARD COMPONENT --- */
 interface TiltCardProps {
   children: React.ReactNode;
   className?: string;
@@ -76,7 +78,7 @@ function TiltCard({ children, className = "", style = {}, ...rest }: TiltCardPro
   );
 }
 
-/* --- 2. HIGH LEVEL STATS COUNTER (FIXED TYPES) --- */
+/* --- 2. HIGH LEVEL STATS COUNTER --- */
 function StatCounter({ value, priority = false }: { value: string; priority?: boolean }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { margin: "-20px", once: false }); 
