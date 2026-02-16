@@ -4,11 +4,12 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar'; 
 import { useAdmin } from '@/context/AdminContext'; 
 import { 
-  ArrowRight, Calendar, ChevronRight, MapPin, 
-  Users, TrendingUp, Quote, Award, BookOpen, Briefcase, Rocket, Clock, CheckCircle2, ExternalLink
+  ArrowRight, Calendar, MapPin, Users, TrendingUp, Quote, 
+  Award, BookOpen, Briefcase, Rocket, ExternalLink
 } from 'lucide-react';
 import { 
-  motion, AnimatePresence, useInView, useMotionValue, useSpring, useTransform, useScroll, useMotionTemplate, animate 
+  motion, AnimatePresence, useInView, useMotionValue, 
+  useSpring, useTransform, useScroll, useMotionTemplate, animate 
 } from 'framer-motion';
 
 /* --- ANIMATION VARIANTS --- */
@@ -61,51 +62,55 @@ function TiltCard({ children, className = "", style = {}, ...rest }) {
       className={className}
       {...rest}
     >
-      {children}
+      <div style={{ transform: "translateZ(20px)" }}>
+        {children}
+      </div>
     </motion.div>
   );
 }
 
-/* --- 2. HIGH LEVEL STATS COUNTER (TWEEN PHYSICS = NO FLUCTUATION) --- */
+/* --- 2. HIGH LEVEL STATS COUNTER --- */
 function StatCounter({ value, priority = false }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { margin: "-20px", once: false }); 
   const count = useMotionValue(0);
   const displayValue = useTransform(count, (latest) => Math.floor(latest));
 
+  // Extract number and suffix safely
+  const numberMatch = value.match(/\d+/);
+  const numericValue = numberMatch ? parseInt(numberMatch[0]) : 0;
+  const suffix = value.replace(/\d/g, '');
+
   useEffect(() => {
     if (isInView) {
-      const numericValue = parseInt(value.replace(/\D/g, ''));
-      // animate() forces the number to stop exactly at the target without any bouncing
       const controls = animate(count, numericValue, { 
-        duration: priority ? 1 : 2.5, // Priority reaches target extremely fast
+        duration: priority ? 1 : 2.5, 
         ease: "easeOut" 
       });
       return controls.stop;
     } else {
-      count.set(0); // Resets instantly so it animates on return
+      count.set(0);
     }
-  }, [isInView, count, value, priority]);
+  }, [isInView, count, numericValue, priority]);
 
   return (
-    <span ref={ref}>
+    <span ref={ref} className="inline-flex">
       <motion.span>{displayValue}</motion.span>
-      {value.replace(/[0-9]/g, '')}
+      <span>{suffix}</span>
     </span>
   );
 }
 
 export default function Home() {
-  // ALL HOOKS CALLED AT THE TOP LEVEL TO PREVENT REACT ERRORS
   const { events = [], gallery = [], customTicker = [] } = useAdmin();
   const [isMounted, setIsMounted] = useState(false);
   const [tickerIndex, setTickerIndex] = useState(0);
   const [activeTab, setActiveTab] = useState('running');
 
-  // Top Progress Bar Logic
+  // Top Progress Bar
   const { scrollYProgress } = useScroll();
 
-  // Global Spotlight Cursor Logic
+  // Spotlight Cursor
   const globalX = useMotionValue(0);
   const globalY = useMotionValue(0);
   const spotlightBg = useMotionTemplate`radial-gradient(500px circle at ${globalX}px ${globalY}px, rgba(59, 130, 246, 0.15), transparent 80%)`;
@@ -120,14 +125,15 @@ export default function Home() {
     return () => window.removeEventListener("mousemove", handleGlobalMouseMove);
   }, [globalX, globalY]);
 
-  // --- DATE FORMATTING HELPER ---
+  // Date Helper
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return ""; // Safety check
     return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
   };
 
-  // --- LOGIC: FLATTEN AND GET LATEST 5 INDIVIDUAL IMAGES ---
+  // Image Logic
   const displayImages = useMemo(() => {
     if (!isMounted || !gallery.length) return [];
     const allPhotos = [];
@@ -141,10 +147,12 @@ export default function Home() {
         });
       });
     });
-    return allPhotos.sort((a, b) => new Date(b.date || b.created_at).getTime() - new Date(a.date || a.created_at).getTime()).slice(0, 5);
+    return allPhotos
+      .sort((a, b) => new Date(b.date || b.created_at).getTime() - new Date(a.date || a.created_at).getTime())
+      .slice(0, 5);
   }, [gallery, isMounted]);
 
-  // --- REFACTORED CATEGORIES FOR FILTERING ---
+  // Event Categories
   const eventCategories = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -155,6 +163,10 @@ export default function Home() {
       const eDate = new Date(e.date);
       eDate.setHours(0, 0, 0, 0);
       const eTime = eDate.getTime();
+      
+      // Safety check for invalid dates
+      if(isNaN(eTime)) return;
+
       if (eTime === todayTime) running.push(e);
       else if (eTime > todayTime) upcoming.push(e);
       else completed.push(e);
@@ -168,11 +180,11 @@ export default function Home() {
     };
   }, [events]);
 
-  // --- TICKER DATA LOGIC ---
+  // Ticker Logic
   const tickerItems = useMemo(() => {
     let items = [];
     if (eventCategories.running.length > 0) {
-      eventCategories.running.forEach((e) => items.push(`ONGOING: ${e.title} (${e.date})`));
+      eventCategories.running.forEach((e) => items.push(`ONGOING: ${e.title} (${formatDate(e.date)})`));
     }
     if (Array.isArray(customTicker)) {
       customTicker.forEach((t) => { if (t.value?.trim()) items.push(t.value); });
@@ -182,29 +194,30 @@ export default function Home() {
 
   useEffect(() => {
     if (tickerItems.length <= 1) return;
-    const timer = setInterval(() => setTickerIndex((prev) => (prev + 1) % tickerItems.length), 6100); 
+    const timer = setInterval(() => {
+        setTickerIndex((prev) => (prev + 1) % tickerItems.length);
+    }, 6100); 
     return () => clearInterval(timer);
   }, [tickerItems.length]);
 
   return (
     <main className="min-h-screen font-sans text-slate-900 bg-slate-50 overflow-x-hidden selection:bg-blue-600 selection:text-white pb-20">
       
-      {/* --- FEATURE 3: SCROLL PROGRESS BAR --- */}
+      {/* FEATURE 3: SCROLL PROGRESS BAR */}
       <motion.div 
         className="fixed top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-600 via-cyan-400 to-yellow-400 origin-left z-[100]" 
         style={{ scaleX: scrollYProgress }} 
       />
       
-      {/* --- FEATURE 2: GLOBAL SPOTLIGHT CURSOR --- */}
+      {/* FEATURE 2: GLOBAL SPOTLIGHT CURSOR */}
       <motion.div
         className="pointer-events-none fixed inset-0 z-50 transition-opacity duration-300"
         style={{ background: spotlightBg }}
       />
 
-      {/* NAVBAR LOADS IMMEDIATELY */}
       <Navbar />
 
-      {/* --- SEQUENTIAL TICKER --- */}
+      {/* SEQUENTIAL TICKER */}
       {isMounted && tickerItems.length > 0 && (
         <div className="mt-20 bg-slate-900 text-white py-3 border-b border-slate-800 relative z-40 h-12 flex items-center overflow-hidden">
           <div className="relative z-50 bg-slate-900 px-4 h-full flex items-center shadow-[20px_0_25px_rgba(15,23,42,1)]">
@@ -212,7 +225,14 @@ export default function Home() {
           </div>
           <div className="flex-1 relative h-full flex items-center overflow-hidden">
             <AnimatePresence mode="wait">
-              <motion.div key={`ticker-${tickerIndex}`} initial={{ x: "100%" }} animate={{ x: "-110%" }} exit={{ x: "-110%" }} transition={{ duration: 6, ease: "linear" }} className="absolute whitespace-nowrap text-sm font-bold text-slate-100 flex items-center gap-3">
+              <motion.div 
+                key={`ticker-${tickerIndex}`} 
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                exit={{ opacity: 0, y: -20 }} 
+                transition={{ duration: 0.5 }} 
+                className="absolute whitespace-nowrap text-sm font-bold text-slate-100 flex items-center gap-3 pl-4"
+              >
                 <span className="text-blue-500 text-xl font-black">✦</span> {tickerItems[tickerIndex]}
               </motion.div>
             </AnimatePresence>
@@ -220,10 +240,10 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- HERO SECTION --- */}
+      {/* HERO SECTION */}
       <section className={`relative pb-16 overflow-hidden ${(isMounted && tickerItems.length > 0) ? 'pt-20' : 'pt-32'}`}>
         <div className="absolute inset-0 z-0 opacity-40">
-           <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
         </div>
 
         <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
@@ -235,14 +255,14 @@ export default function Home() {
             initial="hidden" animate="visible" variants={fadeInUp}
             className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-6 relative inline-block text-transparent bg-clip-text bg-slate-900"
             style={{
-              backgroundImage: 'linear-gradient(110deg, #1e293b 45%, #ffffff 50%, #1e293b 55%)',
+              backgroundImage: 'linear-gradient(110deg, #1e293b 45%, #64748b 50%, #1e293b 55%)',
               backgroundSize: '250% 100%',
               WebkitBackgroundClip: 'text',
               backgroundClip: 'text',
               color: 'transparent'
             }}
-            animate={{ opacity: 1, y: 0, backgroundPosition: ["100% 0%", "-100% 0%"] }}
-            transition={{ opacity: { duration: 0.6, ease: "easeOut" }, backgroundPosition: { repeat: Infinity, duration: 4, ease: "linear" } }}
+            animate={{ backgroundPosition: ["100% 0%", "-100% 0%"] }}
+            transition={{ backgroundPosition: { repeat: Infinity, duration: 4, ease: "linear" } }}
           >
             Entrepreneurship Incubation <br />
             Training & Placements
@@ -260,7 +280,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- SCROLLING IMAGE STRIP --- */}
+      {/* SCROLLING IMAGE STRIP */}
       {isMounted && (
         <section className="pb-16 bg-white border-b border-slate-200 overflow-hidden relative z-20">
           <div className="flex animate-scroll gap-6 px-6">
@@ -281,13 +301,13 @@ export default function Home() {
         </section>
       )}
 
-      {/* --- DEAN'S MESSAGE --- */}
+      {/* DEAN'S MESSAGE */}
       <section className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
             initial="hidden" 
             whileInView="visible" 
-            viewport={{ once: false, amount: 0.3 }} // Reveal on scroll Up & Down
+            viewport={{ once: false, amount: 0.3 }}
             variants={fadeInUp} 
             className="bg-slate-900 text-white rounded-[2rem] p-8 md:p-16 shadow-2xl flex flex-col md:flex-row items-center gap-12"
           >
@@ -306,7 +326,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- KEY PILLARS (WITH FEATURE 1: 3D TILT CARDS) --- */}
+      {/* KEY PILLARS */}
       <section className="py-20 bg-slate-50">
         <div className="max-w-7xl mx-auto px-6">
           <motion.div 
@@ -331,7 +351,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- STATS SECTION --- */}
+      {/* STATS SECTION */}
       <div className="bg-slate-900 text-white border-y border-slate-800">
         <div className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-2 md:grid-cols-4 gap-12 text-center">
           {[
@@ -358,7 +378,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* --- EVENT SCHEDULE (WITH FEATURE 1: 3D TILT CARDS & SMALLER BOXES) --- */}
+      {/* EVENT SCHEDULE */}
       <section className="py-24 max-w-5xl mx-auto px-6 bg-white">
         <div className="text-center mb-16">
           <motion.h2 
