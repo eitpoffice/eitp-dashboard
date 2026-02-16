@@ -1,73 +1,225 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAdmin } from '../../../context/AdminContext';
-import { Globe, Plus, Trash2, Calendar } from 'lucide-react';
+import { Globe, Plus, Trash2, Calendar, Loader2, X, Megaphone, Save, Edit3 } from 'lucide-react';
 
 export default function WebsiteEditor() {
-  const { events, addEvent, deleteEvent } = useAdmin();
+  const { 
+    events = [], 
+    addEvent, 
+    deleteEvent, 
+    loading: globalLoading,
+    customTicker,
+    updateTicker 
+  } = useAdmin();
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEvent, setNewEvent] = useState({ title: '', date: '', description: '', type: 'Workshop' });
+  const [customType, setCustomType] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handlePublish = () => {
+  // State for the ticker input
+  const [tickerInput, setTickerInput] = useState("");
+  const [tickerLoading, setTickerLoading] = useState(false);
+
+  // Sync local input with context value when it loads
+  useEffect(() => {
+    if (customTicker) setTickerInput(customTicker);
+  }, [customTicker]);
+
+  // Handler for Updating Ticker
+  const handleUpdateTicker = async () => {
+    setTickerLoading(true);
+    try {
+      await updateTicker(tickerInput);
+      alert("Ticker Updated Successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update ticker.");
+    } finally {
+      setTickerLoading(false);
+    }
+  };
+
+  // Handler for Deleting Ticker
+  const handleDeleteTicker = async () => {
+    if (!confirm("Are you sure you want to delete the scrolling ticker message?")) return;
+    setTickerLoading(true);
+    try {
+      await updateTicker(""); 
+      setTickerInput("");
+      alert("Ticker Deleted!");
+    } catch (err) {
+      alert("Error deleting ticker.");
+    } finally {
+      setTickerLoading(false);
+    }
+  };
+
+  const handlePublish = async () => {
     if(!newEvent.title) return;
-    addEvent({ ...newEvent, id: Date.now() }); // Published instantly
-    setIsModalOpen(false);
-    setNewEvent({ title: '', date: '', description: '', type: 'Workshop' });
-    alert("Event Published to Public Website!");
+    
+    setLoading(true);
+    // Use customType if 'Custom' is selected
+    const finalEventData = {
+      ...newEvent,
+      type: newEvent.type === "Custom" ? customType : newEvent.type
+    };
+
+    try {
+      await addEvent(finalEventData); 
+      setIsModalOpen(false);
+      setNewEvent({ title: '', date: '', description: '', type: 'Workshop' });
+      setCustomType("");
+      alert("Event Published to Public Website!");
+    } catch (err) {
+      alert("Error publishing event.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Header Section */}
+      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Website Manager</h1>
-          <p className="text-slate-500 text-sm">You have permission to edit the Public Events page.</p>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <Globe size={24} className="text-blue-500" /> Website Manager
+          </h1>
+          <p className="text-slate-500 text-sm">Update the events displayed on the public landing page.</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 shadow-md flex items-center gap-2">
+        <button 
+          onClick={() => {
+            setNewEvent({ title: '', date: '', description: '', type: 'Workshop' });
+            setIsModalOpen(true);
+          }} 
+          className="px-5 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all flex items-center gap-2 active:scale-95"
+        >
           <Plus size={18} /> Publish New Event
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {events.map((event) => (
-          <div key={event.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative group">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-                <Calendar size={24} />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase">{event.type}</span>
-                <h3 className="font-bold text-slate-900 mt-1">{event.title}</h3>
-                <p className="text-xs text-slate-500 mt-1">{event.date}</p>
-              </div>
-            </div>
-            
-            <button 
-              onClick={() => { if(confirm("Remove this event from public site?")) deleteEvent(event.id); }}
-              className="absolute top-4 right-4 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition"
-            >
-              <Trash2 size={18} />
+      {/* Ticker Management Section */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+            <Megaphone className="text-yellow-500" size={20}/> Homepage Scrolling Ticker
+          </h2>
+          {customTicker && (
+            <button onClick={handleDeleteTicker} className="text-xs font-bold text-red-500 flex items-center gap-1 hover:underline px-2 py-1">
+              <Trash2 size={14}/> Delete Ticker
             </button>
-          </div>
-        ))}
+          )}
+        </div>
+        <div className="flex flex-col md:flex-row gap-4">
+          <input 
+            type="text" 
+            placeholder="Enter custom announcement..." 
+            className="flex-1 p-3 border border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition font-medium" 
+            value={tickerInput} 
+            onChange={e => setTickerInput(e.target.value)} 
+          />
+          <button 
+            onClick={handleUpdateTicker}
+            disabled={tickerLoading}
+            className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition shadow-lg shadow-blue-100 disabled:opacity-50"
+          >
+            {tickerLoading ? <Loader2 className="animate-spin" size={18}/> : <><Save size={18}/> Update</>}
+          </button>
+        </div>
       </div>
 
-      {/* Publish Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white p-6 rounded-2xl w-96 shadow-2xl animate-in zoom-in-95">
-            <h3 className="font-bold text-lg mb-4">Publish Public Event</h3>
-            <div className="space-y-3">
-              <input className="w-full border p-2 rounded-lg" placeholder="Event Title" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} />
-              <input type="date" className="w-full border p-2 rounded-lg" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} />
-              <select className="w-full border p-2 rounded-lg bg-white" value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value})}>
-                <option>Workshop</option><option>Seminar</option><option>Hackathon</option>
-              </select>
-              <textarea className="w-full border p-2 rounded-lg" rows="3" placeholder="Description" value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})}></textarea>
+      {/* Events Grid Section */}
+      {globalLoading ? (
+        <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-300" size={40} /></div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(events || []).map((event) => (
+            <div key={event.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative group hover:border-blue-300 transition-all">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                  <Calendar size={24} />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase tracking-wider">{event.type}</span>
+                  <h3 className="font-bold text-slate-900 mt-2 line-clamp-1">{event.title}</h3>
+                  <p className="text-xs text-slate-500 mt-1">{event.date}</p>
+                </div>
+              </div>
+              
+              <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                <button 
+                   onClick={() => { setNewEvent(event); setIsModalOpen(true); }}
+                   className="p-2 bg-blue-50 text-blue-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg"
+                >
+                  <Edit3 size={18} />
+                </button>
+                <button 
+                  onClick={() => { if(confirm("Remove this event?")) deleteEvent(event.id); }}
+                  className="p-2 bg-red-50 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-lg"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
             </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-500 font-bold">Cancel</button>
-              <button onClick={handlePublish} className="px-4 py-2 bg-slate-900 text-white font-bold rounded-lg">Publish Live</button>
+          ))}
+
+          {(!events || events.length === 0) && (
+            <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400">
+              No public events currently listed.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal with Custom Type Logic */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-bold text-xl">{newEvent.id ? 'Edit Event' : 'Create Event'}</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Title</label>
+                <input className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="Event Name" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Date</label>
+                  <input type="date" className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Type</label>
+                  <select className="w-full border border-slate-200 p-3 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value})}>
+                    <option>Workshop</option><option>Seminar</option><option>Hackathon</option><option>Webinar</option><option>Custom</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Custom Type Input - Only visible when 'Custom' is selected */}
+              {newEvent.type === "Custom" && (
+                <div className="animate-in slide-in-from-top-2 duration-200">
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Enter Custom Type</label>
+                  <input className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="e.g. Guest Lecture" value={customType} onChange={e => setCustomType(e.target.value)} />
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Short Description</label>
+                <textarea className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" rows="3" placeholder="Details about the event..." value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})}></textarea>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => { setIsModalOpen(false); setCustomType(""); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition">Cancel</button>
+              <button onClick={handlePublish} disabled={loading} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition flex items-center justify-center gap-2 disabled:bg-slate-400">
+                {loading ? <Loader2 className="animate-spin" size={18} /> : (newEvent.id ? "Save Changes" : "Publish Live")}
+              </button>
             </div>
           </div>
         </div>

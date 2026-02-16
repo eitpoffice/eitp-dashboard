@@ -1,14 +1,27 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAdmin } from '../../context/AdminContext'; 
-import { Upload, FileText, Image as ImageIcon, Camera, Bell, X, Trash2, Loader2, MessageCircle, Send, Paperclip } from 'lucide-react';
+import { 
+  Upload, FileText, Image as ImageIcon, Camera, Bell, X, 
+  Trash2, Loader2, MessageCircle, Send, Paperclip, ChevronDown, CheckCircle, Clock, Users, User, Search 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+/* --- HELPER COMPONENT: FILE ATTACHMENT PILL --- */
+const FilePill = ({ file, onRemove }) => (
+  <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg w-fit mb-2 shadow-sm border border-blue-100">
+    <Paperclip size={14} />
+    <span className="text-xs font-bold truncate max-w-[200px]">{file.name}</span>
+    <button onClick={onRemove} className="hover:bg-blue-200 p-1 rounded-full transition"><X size={12} /></button>
+  </div>
+);
 
 export default function InternDashboard() {
   const { 
-    submitWork, submissions = [], currentIntern, 
-    notifications = [], 
-    gallery = [], addImage, deleteImage, sendSubmissionComment 
+    submitWork, submissions = [], currentIntern, interns = [],
+    notifications = [], gallery = [], 
+    messages = [], sendUnifiedMessage, deleteUnifiedMessage,
+    addImage, deleteImage, deleteSubmission, sendSubmissionComment, deleteSubmissionComment
   } = useAdmin();
   
   const [taskTitle, setTaskTitle] = useState('');
@@ -17,137 +30,215 @@ export default function InternDashboard() {
   const [galleryTitle, setGalleryTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   
+  const [hubMode, setHubMode] = useState('submissions');
+  const [recipient, setRecipient] = useState(null);
+  const [searchQuery, setSearchQuery] = useState(''); // NEW: Search State
+  
   const [chatMessage, setChatMessage] = useState('');
+  const [chatFile, setChatFile] = useState(null);
   const [activeSubId, setActiveSubId] = useState(null);
+  
+  const [dmMessage, setDmMessage] = useState('');
+  const [dmFile, setDmFile] = useState(null);
+
   const chatEndRef = useRef(null);
+  const dmEndRef = useRef(null);
 
   const [visibleNotifications, setVisibleNotifications] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(5); 
+
+  const [readMessages, setReadMessages] = useState({});
+  const [readReviews, setReadReviews] = useState({});
 
   useEffect(() => {
     const dismissedIds = JSON.parse(localStorage.getItem('eitp_dismissed_alerts')) || [];
     const active = (notifications || []).filter(n => !dismissedIds.includes(n.id));
     setVisibleNotifications(active);
+    setReadMessages(JSON.parse(localStorage.getItem('eitp_read_messages')) || {});
+    setReadReviews(JSON.parse(localStorage.getItem('eitp_read_reviews')) || {});
   }, [notifications]);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeSubId, submissions]);
-
-  const handleDismiss = (id) => {
-    const dismissedIds = JSON.parse(localStorage.getItem('eitp_dismissed_alerts')) || [];
-    if (!dismissedIds.includes(id)) {
-      const updatedDismissed = [...dismissedIds, id];
-      localStorage.setItem('eitp_dismissed_alerts', JSON.stringify(updatedDismissed));
-    }
-    setVisibleNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
   const internName = currentIntern ? currentIntern.name : "Guest Intern";
-  // FILTER: Ensures we only see our own work
   const mySubmissions = submissions.filter(s => s.intern_name === internName);
   const activeSub = submissions.find(s => s.id === activeSubId);
 
-  // --- HANDLERS ---
-  
+  // --- NEW: SORTED & FILTERED LISTS ---
+  const filteredSubmissions = useMemo(() => {
+    // 1. Get my submissions
+    let data = submissions.filter(s => s.intern_name === internName);
+    // 2. Reverse to show newest first
+    data = [...data].reverse();
+    // 3. Search Filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      data = data.filter(s => s.title.toLowerCase().includes(q));
+    }
+    return data;
+  }, [submissions, internName, searchQuery]);
+
+  const filteredContacts = useMemo(() => {
+    let contacts = [
+        { id: 'all_admins', name: 'Admin Team', type: 'direct_admin' },
+        ...interns.filter(i => i.id !== currentIntern?.id)
+    ];
+    // Search Filter
+    if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        contacts = contacts.filter(c => c.name.toLowerCase().includes(q));
+    }
+    return contacts;
+  }, [interns, currentIntern, searchQuery]);
+
+  // --- FILTER DIRECT INBOX CHATS ---
+  const activeDmChats = useMemo(() => {
+    if (hubMode !== 'direct' || !recipient) return [];
+    return messages.filter(m => {
+      const isMeSender = m.sender_name === internName || String(m.sender_id) === String(currentIntern?.id);
+      const isMeRecipient = m.recipient_name === internName || String(m.recipient_id) === String(currentIntern?.id);
+      
+      if (recipient.id === 'all_admins') {
+        return (isMeSender && m.recipient_id === 'all_admins') || (isMeRecipient && m.type === 'direct_admin');
+      }
+      const isTargetRecipient = String(m.recipient_id) === String(recipient.id);
+      const isTargetSender = String(m.sender_id) === String(recipient.id);
+      return (isMeSender && isTargetRecipient) || (isMeRecipient && isTargetSender);
+    });
+  }, [messages, hubMode, recipient, internName, currentIntern]);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [activeSubId, submissions]);
+  useEffect(() => { dmEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [activeDmChats, hubMode]);
+
+  // --- RED DOT LOGIC FOR SUBMISSIONS ---
+  const hasUnreadAdminMessage = (sub) => {
+    if (!sub.comments || sub.comments.length === 0) return false;
+    const lastComment = sub.comments[sub.comments.length - 1];
+    if (lastComment.role !== 'admin') return false;
+    return String(readMessages[`sub_${sub.id}`]) !== String(lastComment.id);
+  };
+
+  // --- RED DOT LOGIC FOR INBOX ---
+  const hasUnreadDirectMsg = (contactId) => {
+    const thread = messages.filter(m => {
+       const isMeSender = m.sender_name === internName || String(m.sender_id) === String(currentIntern?.id);
+       const isMeRecipient = m.recipient_name === internName || String(m.recipient_id) === String(currentIntern?.id);
+       if (contactId === 'all_admins') return (isMeSender && m.recipient_id === 'all_admins') || (isMeRecipient && m.type === 'direct_admin');
+       return (isMeSender && String(m.recipient_id) === String(contactId)) || (isMeRecipient && String(m.sender_id) === String(contactId));
+    });
+    if (thread.length === 0) return false;
+    const lastMsg = thread[thread.length - 1];
+    if (lastMsg.sender_name === internName) return false; // No dot if I sent it
+    return String(readMessages[`dm_${contactId}`]) !== String(lastMsg.id);
+  };
+
+  // --- TOP TAB HEADER NOTIFICATION LOGIC ---
+  const hasAnyUnreadSubmissions = mySubmissions.some(sub => hasUnreadAdminMessage(sub));
+  const contactIds = ['all_admins', ...interns.filter(i => i.id !== currentIntern?.id).map(i => i.id)];
+  const hasAnyUnreadDirect = contactIds.some(id => hasUnreadDirectMsg(id));
+
+  // --- MARK AS READ LOGIC ---
+  useEffect(() => {
+    if (hubMode === 'submissions' && activeSubId && activeSub?.comments?.length > 0) {
+      const lastComment = activeSub.comments[activeSub.comments.length - 1];
+      if (lastComment.role === 'admin' && String(readMessages[`sub_${activeSubId}`]) !== String(lastComment.id)) {
+         const updated = { ...readMessages, [`sub_${activeSubId}`]: String(lastComment.id) };
+         setReadMessages(updated);
+         localStorage.setItem('eitp_read_messages', JSON.stringify(updated));
+      }
+    } else if (hubMode === 'direct' && recipient && activeDmChats.length > 0) {
+      const lastMsg = activeDmChats[activeDmChats.length - 1];
+      if (lastMsg.sender_name !== internName && String(readMessages[`dm_${recipient.id}`]) !== String(lastMsg.id)) {
+         const updated = { ...readMessages, [`dm_${recipient.id}`]: String(lastMsg.id) };
+         setReadMessages(updated);
+         localStorage.setItem('eitp_read_messages', JSON.stringify(updated));
+      }
+    }
+  }, [activeSubId, activeSub, activeDmChats, hubMode, recipient, internName, readMessages]);
+
   const handleWorkSubmit = async (e) => {
     e.preventDefault();
     if (!taskTitle || selectedFiles.length === 0) return;
-    
     setUploading(true);
     try {
-        // BULK UPLOAD: Await each one to ensure DB consistency
         for (const file of selectedFiles) {
-          await submitWork({ 
-            intern_name: internName, 
-            title: taskTitle, 
-            file_name: file.name, 
-            file: file
-          });
+          await submitWork({ intern_name: internName, title: taskTitle, file_name: file.name, file: file });
         }
-        setTaskTitle(''); 
-        setSelectedFiles([]); 
-        alert("Reports Submitted Successfully!");
-    } catch (err) {
-        console.error(err);
-        alert("Upload failed. Check your connection.");
-    } finally {
-        setUploading(false);
-    }
+        setTaskTitle(''); setSelectedFiles([]); alert("Reports Submitted Successfully!");
+    } catch (err) { alert("Upload failed."); } finally { setUploading(false); }
   };
 
   const handleGalleryUpload = async (e) => {
     e.preventDefault();
     if(!galleryTitle || galleryImgs.length === 0) return;
-
     setUploading(true);
     try {
         for (const img of galleryImgs) {
-          await addImage({ 
-            title: galleryTitle, 
-            file: img, 
-            uploader: internName,
-            date: new Date().toISOString().split('T')[0]
-          });
+          await addImage({ title: galleryTitle, file: img, uploader: internName, date: new Date().toISOString().split('T')[0] });
         }
-        setGalleryTitle(''); 
-        setGalleryImgs([]); 
-        alert("Gallery updated!");
-    } catch (err) {
-        alert("Gallery upload failed.");
-    } finally {
-        setUploading(false);
-    }
+        setGalleryTitle(''); setGalleryImgs([]); alert("Gallery updated!");
+    } catch (err) { alert("Gallery upload failed."); } finally { setUploading(false); }
   };
 
   const handleChatSend = async (e) => {
     e.preventDefault();
     if (!chatMessage.trim() || !activeSubId) return;
-
     try {
-        await sendSubmissionComment(activeSubId, {
-          sender: internName,
-          text: chatMessage,
-          role: 'intern' // Required for CSS alignment
-        });
+        await sendSubmissionComment(activeSubId, { sender: internName, text: chatMessage, role: 'intern' });
         setChatMessage('');
-    } catch (err) {
-        alert("Message failed to send.");
-    }
+    } catch (err) { alert("Message failed to send."); }
   };
 
-  const handleDeleteImage = async (id) => {
-    if(confirm("Are you sure you want to delete this image?")) {
-      await deleteImage(id);
+  const handleDmSend = async (e) => {
+    e.preventDefault();
+    if (!dmMessage.trim() && !dmFile) return;
+    try {
+        await sendUnifiedMessage({
+          sender_id: currentIntern.id, sender_name: internName,
+          recipient_id: recipient.id, recipient_name: recipient.name,
+          text: dmMessage, file: dmFile, type: recipient.id === 'all_admins' ? 'direct_admin' : 'intern_to_intern'
+        });
+        setDmMessage(''); setDmFile(null);
+    } catch (err) { alert("Message failed to send."); }
+  };
+
+  const handleDeleteImage = async (id) => { if(confirm("Delete image?")) await deleteImage(id); };
+  const handleDeleteSubmission = async (e, id) => {
+    e.stopPropagation();
+    if(confirm("Delete this submission?")) {
+      await deleteSubmission(id);
+      if(activeSubId === id) setActiveSubId(null);
     }
+  };
+  const handleDeleteMessage = async (subId, commentIndex) => {
+    if(confirm("Delete this message?")) await deleteSubmissionComment(subId, commentIndex);
+  };
+  const handleDeleteUnifiedMsg = async (id) => { 
+    if(confirm("Delete this message?")) await deleteUnifiedMessage(id); 
+  };
+
+  const handleDismiss = (id) => {
+    const dismissedIds = JSON.parse(localStorage.getItem('eitp_dismissed_alerts')) || [];
+    if (!dismissedIds.includes(id)) {
+      localStorage.setItem('eitp_dismissed_alerts', JSON.stringify([...dismissedIds, id]));
+    }
+    setVisibleNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   return (
     <main className="min-h-screen bg-slate-50 font-sans py-10 px-6">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8">
         
         {/* Alerts Section */}
         <div className="space-y-4">
            <AnimatePresence>
               {visibleNotifications.map((note) => (
-                <motion.div 
-                  key={note.id}
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className={`p-4 rounded-xl border-l-4 shadow-sm flex items-start gap-4 ${
-                    note.type === 'urgent' ? 'bg-red-50 border-red-500 text-red-900' : 'bg-yellow-50 border-yellow-500 text-yellow-900'
-                  }`}
-                >
-                   <div className={`p-2 rounded-full ${note.type === 'urgent' ? 'bg-red-200' : 'bg-yellow-200'}`}>
-                      <Bell size={18} />
-                   </div>
+                <motion.div key={note.id} initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} className={`p-4 rounded-xl border-l-4 shadow-sm flex items-start gap-4 ${note.type === 'urgent' ? 'bg-red-50 border-red-500 text-red-900' : 'bg-yellow-50 border-yellow-500 text-yellow-900'}`}>
                    <div className="flex-1">
                       <div className="flex justify-between items-start">
-                         <h4 className="font-bold text-sm uppercase tracking-wider mb-1">{note.type === 'urgent' ? 'Urgent Broadcast' : 'Announcement'}</h4>
-                         <span className="text-[10px] opacity-60 font-mono">{note.date}</span>
+                         <h4 className="font-bold text-sm uppercase mb-1">{note.type === 'urgent' ? 'Urgent Alert' : 'Announcement'}</h4>
+                         <span className="text-[10px] opacity-60">{note.date}</span>
                       </div>
-                      <p className="font-bold text-lg leading-snug mb-1">{note.subject}</p>
-                      {note.message && <p className="text-sm opacity-90 leading-relaxed whitespace-pre-wrap border-t border-black/10 pt-2 mt-2">{note.message}</p>}
+                      <p className="font-bold text-lg mb-1">{note.subject}</p>
+                      {note.message && <p className="text-sm opacity-90 border-t border-black/10 pt-2 mt-2">{note.message}</p>}
                    </div>
                    <button onClick={() => handleDismiss(note.id)} className="p-1 hover:bg-black/10 rounded-full transition"><X size={16} /></button>
                 </motion.div>
@@ -155,111 +246,213 @@ export default function InternDashboard() {
            </AnimatePresence>
         </div>
 
-        {/* Dashboard Header */}
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Intern Dashboard</h1>
           <p className="text-slate-500">Welcome back, <span className="font-bold text-blue-600">{internName}</span></p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Submission Form */}
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 h-fit">
-            <h3 className="font-bold text-xl mb-6 flex items-center gap-2"><Upload className="text-blue-600" /> Submit Weekly Report</h3>
-            <form onSubmit={handleWorkSubmit} className="space-y-4">
-              <input type="text" placeholder="Task Title" className="w-full px-4 py-3 rounded-xl bg-slate-50 border outline-none" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} required />
-              <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer relative hover:bg-slate-50 transition">
-                <input type="file" multiple onChange={e => setSelectedFiles(Array.from(e.target.files))} className="absolute inset-0 opacity-0 cursor-pointer z-10" required />
-                <p className="text-sm text-slate-500 font-bold">{selectedFiles.length > 0 ? `${selectedFiles.length} files selected` : "Select Documents (PDF/ZIP)"}</p>
-              </div>
-              <button disabled={uploading} type="submit" className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl flex items-center justify-center gap-2">
-                {uploading ? <Loader2 className="animate-spin" /> : "Submit Reports"}
-              </button>
-            </form>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Submission Form & Selection Sidebar */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 h-fit">
+              <h3 className="font-bold text-xl mb-6 flex items-center gap-2"><Upload className="text-blue-600" /> Submit Weekly Report</h3>
+              <form onSubmit={handleWorkSubmit} className="space-y-4">
+                <input type="text" placeholder="Task Title" className="w-full px-4 py-3 rounded-xl bg-slate-50 border outline-none focus:ring-2 focus:ring-blue-100 transition-all" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} required />
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center relative hover:bg-slate-50 transition">
+                  <input type="file" multiple onChange={e => setSelectedFiles(Array.from(e.target.files))} className="absolute inset-0 opacity-0 cursor-pointer z-10" required />
+                  <p className="text-sm text-slate-500 font-bold">{selectedFiles.length > 0 ? `${selectedFiles.length} files selected` : "Attach PDF/ZIP"}</p>
+                </div>
+                <button disabled={uploading} type="submit" className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl">{uploading ? <Loader2 className="animate-spin mx-auto" /> : "Submit Reports"}</button>
+              </form>
+            </div>
+
+            {/* Selection Sidebar */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[400px]">
+               <div className="p-2 flex gap-1 bg-slate-50/50 border-b">
+                  <button onClick={() => { setHubMode('submissions'); setRecipient(null); setSearchQuery(''); }} className={`relative flex-1 py-2 text-xs font-black uppercase rounded-lg transition-all ${hubMode === 'submissions' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}>
+                    Reports
+                    {hasAnyUnreadSubmissions && <div className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]" />}
+                  </button>
+                  <button onClick={() => { setHubMode('direct'); setActiveSubId(null); setSearchQuery(''); }} className={`relative flex-1 py-2 text-xs font-black uppercase rounded-lg transition-all ${hubMode === 'direct' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}>
+                    Inbox
+                    {hasAnyUnreadDirect && <div className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]" />}
+                  </button>
+               </div>
+               
+               {/* SEARCH BAR (Added Inside Sidebar) */}
+               <div className="px-3 pt-2">
+                 <div className="relative">
+                   <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                   <input 
+                     type="text" 
+                     placeholder={hubMode === 'submissions' ? "Search Reports..." : "Search Contacts..."} 
+                     className="w-full pl-9 pr-4 py-2 bg-slate-100 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+                     value={searchQuery}
+                     onChange={e => setSearchQuery(e.target.value)}
+                   />
+                 </div>
+               </div>
+
+               <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                  {hubMode === 'submissions' ? (
+                    <>
+                      {filteredSubmissions.length > 0 ? filteredSubmissions.map(sub => (
+                        <div key={sub.id} onClick={() => setActiveSubId(sub.id)} className={`group relative p-3 mb-2 rounded-xl cursor-pointer border transition-all ${activeSubId === sub.id ? 'bg-blue-600 text-white shadow-md border-blue-600' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
+                           <p className="font-bold truncate text-sm">{sub.title}</p>
+                           <div className="flex justify-between items-center mt-2 opacity-70 text-[10px]">
+                             <span>{sub.date}</span>
+                             <span className="font-bold uppercase">{sub.status}</span>
+                           </div>
+                           {/* RED DOT */}
+                           {hasUnreadAdminMessage(sub) && activeSubId !== sub.id && (
+                             <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_red]" />
+                           )}
+                           <button onClick={(e) => handleDeleteSubmission(e, sub.id)} className="absolute top-2 right-2 p-1 text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={12}/></button>
+                        </div>
+                      )) : <p className="text-center text-xs text-slate-400 mt-10">No reports found.</p>}
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                       <p className="text-[10px] font-black text-slate-400 uppercase px-1 pb-1">Contacts</p>
+                       {filteredContacts.map(contact => (
+                          <div key={contact.id} onClick={() => setRecipient({ id: contact.id, name: contact.name, type: contact.type })} className={`relative p-3 rounded-xl cursor-pointer border flex items-center gap-3 transition-all ${recipient?.id === contact.id ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}>
+                             <div className={`w-8 h-8 rounded-full flex items-center justify-center ${contact.id === 'all_admins' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}><Users size={16}/></div>
+                             <div className="overflow-hidden">
+                                <p className="text-sm font-bold truncate">{contact.name}</p>
+                                {contact.id !== 'all_admins' && <p className="text-[9px] text-slate-400 truncate uppercase">{contact.branch}</p>}
+                             </div>
+                             {/* RED DOT */}
+                             {hasUnreadDirectMsg(contact.id) && recipient?.id !== contact.id && <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />}
+                          </div>
+                       ))}
+                    </div>
+                  )}
+               </div>
+            </div>
           </div>
 
-          {/* Feedback Hub */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden h-[450px]">
-             <div className="p-4 border-b bg-slate-50/50 flex items-center gap-2 font-bold text-slate-700">
-                <MessageCircle size={18} className="text-blue-600"/> Feedback Hub
+          {/* DUAL MODE FEEDBACK HUB (CHATS) */}
+          <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden h-[600px] relative">
+             <div className="p-4 border-b bg-slate-50/50 flex items-center justify-between font-bold text-slate-700">
+                <div className="flex items-center gap-2">
+                   {hubMode === 'direct' ? <User size={18} className="text-blue-600"/> : <MessageCircle size={18} className="text-blue-600"/> }
+                   <span>
+                      {hubMode === 'submissions' 
+                        ? (activeSub ? activeSub.title : 'Feedback Hub') 
+                        : (recipient ? recipient.name : 'Direct Inbox')}
+                   </span>
+                </div>
+                {(activeSub || recipient) && (
+                   <span className="text-[9px] font-black text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200 shadow-sm uppercase tracking-widest animate-pulse">
+                      Active
+                   </span>
+                )}
              </div>
              
-             <div className="flex flex-1 overflow-hidden">
-                <div className="w-1/3 border-r overflow-y-auto p-2 bg-slate-50/30">
-                   {mySubmissions.map(sub => (
-                      <div 
-                        key={sub.id} 
-                        onClick={() => setActiveSubId(sub.id)}
-                        className={`p-3 mb-2 rounded-xl cursor-pointer text-xs border transition-all ${activeSubId === sub.id ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white border-slate-100 hover:bg-slate-100'}`}
-                      >
-                         <p className="font-bold truncate">{sub.title}</p>
-                         <p className={`text-[9px] mt-1 ${activeSubId === sub.id ? 'text-blue-100' : 'text-slate-400'}`}>{sub.date}</p>
-                      </div>
-                   ))}
-                </div>
-
-                <div className="flex-1 flex flex-col bg-white">
-                   {activeSub ? (
-                      <>
-                        <div className="flex-1 p-4 overflow-y-auto space-y-3 custom-scrollbar">
+             <div className="flex-1 flex flex-col overflow-hidden bg-white">
+                {hubMode === 'submissions' ? (
+                   activeSub ? (
+                     <>
+                        <div className="flex-1 p-4 overflow-y-auto space-y-4 custom-scrollbar">
                            {(activeSub.comments || []).map((msg, i) => (
-                              <div key={i} className={`flex flex-col ${msg.role === 'intern' ? 'items-end' : 'items-start'}`}>
-                                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.role === 'intern' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
-                                    <p>{msg.text}</p>
-                                    <p className={`text-[8px] mt-1 opacity-60 uppercase font-bold`}>{msg.time}</p>
+                              <div key={i} className={`flex flex-col group ${msg.role === 'intern' ? 'items-end' : 'items-start'}`}>
+                                 <div className={`flex items-center gap-2 max-w-full ${msg.role === 'intern' ? 'flex-row-reverse' : ''}`}>
+                                   <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.role === 'intern' ? 'bg-blue-600 text-white rounded-tr-none shadow-md' : 'bg-slate-100 text-slate-800 rounded-tl-none shadow-sm'}`}>
+                                      {msg.role !== 'intern' && <p className="text-[10px] font-black text-blue-600 mb-1 uppercase tracking-widest">{msg.sender}</p>}
+                                      {msg.fileName && <a href={msg.file_url || "#"} className="flex items-center gap-2 p-2 bg-black/10 rounded-lg text-xs font-bold mb-2 w-fit hover:bg-black/20 transition"><Paperclip size={12}/> {msg.fileName}</a>}
+                                      <p>{msg.text}</p>
+                                      <p className="text-[8px] mt-1 opacity-60 uppercase font-bold text-right">{msg.time}</p>
+                                   </div>
+                                   {msg.role === 'intern' && (
+                                     <button onClick={() => handleDeleteMessage(activeSub.id, i)} className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all" title="Delete Message">
+                                       <Trash2 size={12}/>
+                                     </button>
+                                   )}
                                  </div>
                               </div>
                            ))}
                            <div ref={chatEndRef} />
                         </div>
-                        <form onSubmit={handleChatSend} className="p-3 border-t flex gap-2">
-                           <input type="text" placeholder="Reply to admin..." className="flex-1 bg-slate-50 p-2 rounded-lg outline-none text-xs" value={chatMessage} onChange={e => setChatMessage(e.target.value)} />
-                           <button className="p-2 bg-blue-600 text-white rounded-lg"><Send size={14}/></button>
-                        </form>
-                      </>
+                        <div className="p-3 border-t flex gap-2 bg-slate-50">
+                           <input type="text" placeholder="Reply to admin..." className="flex-1 bg-white border p-2 rounded-lg outline-none text-xs shadow-sm" value={chatMessage} onChange={e => setChatMessage(e.target.value)} />
+                           <button onClick={handleChatSend} className="p-2 bg-blue-600 text-white rounded-lg shadow-sm hover:opacity-90 disabled:opacity-50" disabled={!chatMessage.trim()}><Send size={14}/></button>
+                        </div>
+                     </>
                    ) : (
-                      <div className="flex-1 flex items-center justify-center text-slate-400 text-xs italic p-4 text-center">
-                         Select a submission to view admin feedback.
-                      </div>
-                   )}
-                </div>
+                     <div className="flex-1 flex items-center justify-center text-slate-400 text-xs italic p-4 text-center">
+                        Select a submission to view admin feedback.
+                     </div>
+                   )
+                ) : (
+                   recipient ? (
+                     <div className="flex-1 flex flex-col bg-white h-full">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                           {activeDmChats.map((msg, i) => {
+                              const isMe = msg.sender_name === internName;
+                              return (
+                                <div key={msg.id || i} className={`w-full flex flex-col group ${isMe ? 'items-end' : 'items-start'}`}>
+                                   <div className={`flex items-center gap-2 w-fit max-w-[85%] ${isMe ? 'flex-row-reverse' : ''}`}>
+                                     <div className={`p-3 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
+                                        {!isMe && <p className="text-[10px] font-black text-blue-600 mb-1 uppercase tracking-widest">{msg.sender_name}</p>}
+                                        {msg.file_url && <a href={msg.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-2 bg-black/10 rounded-lg text-xs font-bold mb-2 w-fit hover:bg-black/20 transition-all"><Paperclip size={12}/> {msg.file_name}</a>}
+                                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                                        <div className="flex justify-between items-center mt-2 opacity-60 text-[9px] font-bold uppercase">
+                                           <span>{msg.time}</span>
+                                        </div>
+                                     </div>
+                                     {isMe && (
+                                        <button onClick={() => handleDeleteUnifiedMsg(msg.id)} className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all">
+                                           <Trash2 size={12}/>
+                                        </button>
+                                     )}
+                                   </div>
+                                </div>
+                              );
+                           })}
+                           <div ref={dmEndRef} />
+                        </div>
+                        <div className="p-3 bg-slate-50 border-t">
+                           {dmFile && <FilePill file={dmFile} onRemove={() => setDmFile(null)} />}
+                           <form onSubmit={handleDmSend} className="flex flex-row items-center gap-2">
+                              <label className="p-2 text-slate-500 hover:text-blue-600 cursor-pointer shrink-0">
+                                 <Paperclip size={20} />
+                                 <input type="file" className="hidden" onChange={e => setDmFile(e.target.files[0])} />
+                              </label>
+                              <input type="text" placeholder="Type a message..." className="flex-1 bg-white border px-4 py-2.5 rounded-lg outline-none text-xs shadow-sm" value={dmMessage} onChange={e => setDmMessage(e.target.value)} />
+                              <button type="submit" disabled={!dmMessage.trim() && !dmFile} className="p-2.5 bg-blue-600 disabled:opacity-50 text-white rounded-lg shadow-sm hover:opacity-90 shrink-0"><Send size={14}/></button>
+                           </form>
+                        </div>
+                     </div>
+                   ) : (
+                     <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50 text-slate-400 p-10 text-center">
+                        <MessageCircle size={48} className="mb-4" />
+                        <h3 className="font-bold text-slate-900 mb-1">Direct Inbox</h3>
+                        <p className="text-xs max-w-[250px] italic">Select a contact from the left sidebar to start messaging.</p>
+                     </div>
+                   )
+                )}
              </div>
           </div>
         </div>
 
         {/* Gallery Section */}
         <div className="space-y-6">
-           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
-             <ImageIcon className="absolute right-0 top-0 text-white opacity-10 w-64 h-64 -mr-10 -mt-10 pointer-events-none" />
+           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-8 text-white relative overflow-hidden shadow-xl">
              <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
-                <div className="md:col-span-1">
-                   <h2 className="text-2xl font-bold mb-2">Campus Gallery</h2>
-                   <p className="text-blue-100 text-sm">Share multiple moments from your department.</p>
-                </div>
+                <div className="md:col-span-1"><h2 className="text-2xl font-bold mb-2">Campus Gallery</h2><p className="text-blue-100 text-sm">Share moments from your department.</p></div>
                 <form onSubmit={handleGalleryUpload} className="md:col-span-2 flex flex-col md:flex-row gap-4">
                    <input type="text" placeholder="Event Caption..." className="flex-1 px-4 py-3 rounded-xl text-slate-900 outline-none shadow-md" value={galleryTitle} onChange={e => setGalleryTitle(e.target.value)} required />
-                   <div className="relative bg-white text-blue-600 rounded-xl px-4 py-3 cursor-pointer hover:bg-blue-50 transition text-center min-w-[160px] shadow-md flex items-center justify-center gap-2 group">
-                      <input type="file" multiple accept="image/*" onChange={e => setGalleryImgs(Array.from(e.target.files))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" required />
-                      <Camera size={18} className="group-hover:scale-110 transition-transform"/>
-                      <span className="text-sm font-bold truncate block max-w-[100px]">{galleryImgs.length > 0 ? `${galleryImgs.length} Selected` : "Choose Photos"}</span>
-                   </div>
-                   <button disabled={uploading} type="submit" className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition">
-                      {uploading ? <Loader2 className="animate-spin" /> : "Upload All"}
-                   </button>
+                   <div className="relative bg-white text-blue-600 rounded-xl px-4 py-3 cursor-pointer min-w-[160px] flex items-center justify-center gap-2 group shadow-md"><input type="file" multiple accept="image/*" onChange={e => setGalleryImgs(Array.from(e.target.files))} className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer" /><Camera size={18}/><span>{galleryImgs.length > 0 ? `${galleryImgs.length} Selected` : "Choose Photos"}</span></div>
+                   <button disabled={uploading} type="submit" className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg">{uploading ? <Loader2 className="animate-spin mx-auto" /> : "Upload All"}</button>
                 </form>
              </div>
            </div>
-
            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
              {gallery.map(img => (
                <div key={img.id} className="group relative rounded-xl overflow-hidden aspect-square shadow-sm border border-slate-200 bg-white">
                   <img src={img.url} alt={img.title} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col justify-end p-3">
-                     <p className="text-white text-xs font-bold truncate">{img.title}</p>
-                     <p className="text-slate-300 text-[10px]">By {img.uploader}</p>
-                  </div>
-                  {img.uploader === internName && (
-                    <button onClick={() => handleDeleteImage(img.id)} className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition z-20"><Trash2 size={14} /></button>
-                  )}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col justify-end p-3"><p className="text-white text-xs font-bold truncate">{img.title}</p><p className="text-slate-300 text-[10px]">By {img.uploader}</p></div>
+                  {img.uploader === internName && <button onClick={() => handleDeleteImage(img.id)} className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full shadow-lg z-20 transition hover:bg-red-600"><Trash2 size={14} /></button>}
                </div>
              ))}
            </div>

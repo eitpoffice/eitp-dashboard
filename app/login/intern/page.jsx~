@@ -1,64 +1,60 @@
 "use client";
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAdmin } from '@/context/AdminContext'; // Using the alias is safer
-import { LogIn, User, Lock, Loader2, ArrowRight } from 'lucide-react';
-import Link from 'next/link';
+import { useAdmin } from '../../../context/AdminContext'; // Ensure path is correct
+import { LogIn, User, Lock, Loader2 } from 'lucide-react';
 
 export default function InternLogin() {
   const router = useRouter();
+  
+  // FIX 1: Add loginIntern here
   const { loginIntern } = useAdmin(); 
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
+  // FIX 2: Make this function async
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
-      // 1. Attempt Secure Login
-      // This goes to Supabase Auth -> Checks Creds -> Returns Session
-      const { user } = await loginIntern(email, password);
+      // FIX 3: Add await here
+      const success = await loginIntern(email, password);
       
-      if (user) {
-        // 2. Success! Redirect to the Dashboard
+      if (success) {
         router.push('/intern'); 
+      } else {
+        alert("Invalid credentials. Please try again.");
       }
     } catch (err) {
       console.error("Login Error:", err);
-      // Show a friendly error message
-      setError("Invalid email or password. Please try again.");
+      alert("An error occurred during login.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 px-4 relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
-
-      <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-10 relative z-10">
+    <main className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
             <LogIn className="text-white" size={30} />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Intern Portal</h1>
-          <p className="text-slate-500 font-medium mt-1">Sign in to access your workspace</p>
+          <h1 className="text-2xl font-bold text-slate-900">Intern Login</h1>
+          <p className="text-slate-500">Access your EITP Dashboard</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Email Address</label>
             <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="email" 
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-bold text-slate-700 placeholder:text-slate-300"
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition"
                 placeholder="intern@clg.in"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -68,12 +64,12 @@ export default function InternLogin() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Password</label>
+            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Password</label>
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="password" 
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-bold text-slate-700 placeholder:text-slate-300"
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -82,26 +78,14 @@ export default function InternLogin() {
             </div>
           </div>
 
-          {error && (
-            <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl text-center border border-red-100 animate-pulse">
-              {error}
-            </div>
-          )}
-
           <button 
             disabled={loading}
             type="submit" 
-            className="w-full py-5 bg-slate-900 text-white font-black rounded-2xl hover:bg-black transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2 group"
+            className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition shadow-lg flex items-center justify-center gap-2"
           >
-            {loading ? <Loader2 className="animate-spin" /> : <>ENTER DASHBOARD <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform"/></>}
+            {loading ? <Loader2 className="animate-spin" /> : "Sign In"}
           </button>
         </form>
-
-        <div className="mt-8 text-center pt-6 border-t border-slate-50">
-           <Link href="/" className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors">
-             Back to Home
-           </Link>
-        </div>
       </div>
     </main>
   );

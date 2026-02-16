@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAdmin } from '@/context/AdminContext';
-import { LayoutDashboard, CheckSquare, Globe, LogOut, MessageSquare, Loader2 } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, Globe, LogOut, MessageSquare, Loader2, MessageCircle } from 'lucide-react';
 
 export default function InternLayout({ children }) {
   const { currentIntern, logoutIntern, loading } = useAdmin();
@@ -46,10 +46,16 @@ export default function InternLayout({ children }) {
           <Link href="/intern" className="flex items-center px-4 py-3 text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all font-medium">
             <LayoutDashboard size={20} className="mr-3" /> Dashboard
           </Link>
+
           <Link href="/intern/tasks" className="flex items-center px-4 py-3 text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all font-medium">
             <CheckSquare size={20} className="mr-3" /> My Tasks
           </Link>
           
+          {/* NEW CHAT TAB */}
+          <Link href="/intern/chat" className="flex items-center px-4 py-3 text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all font-medium">
+            <MessageCircle size={20} className="mr-3" /> Team Chat
+          </Link>
+
           <Link href="/intern/messages" className="flex items-center px-4 py-3 text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all font-medium">
             <MessageSquare size={20} className="mr-3" /> Student Queries
           </Link>

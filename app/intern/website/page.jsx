@@ -1,26 +1,51 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAdmin } from '../../../context/AdminContext';
-import { Globe, Plus, Trash2, Calendar, Loader2, X } from 'lucide-react';
+import { Globe, Plus, Trash2, Calendar, Loader2, X, Megaphone, Save, Edit3, List } from 'lucide-react';
 
 export default function WebsiteEditor() {
-  // FIX: Default 'events' to empty array to prevent crash
-  const { events = [], addEvent, deleteEvent, loading: globalLoading } = useAdmin();
+  const { 
+    events = [], 
+    addEvent, 
+    deleteEvent, 
+    loading: globalLoading,
+    customTicker = [], // This is now an array from our updated context
+    updateTicker, // We'll use this for adding
+    deleteTicker // New function from context
+  } = useAdmin();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEvent, setNewEvent] = useState({ title: '', date: '', description: '', type: 'Workshop' });
+  const [customType, setCustomType] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // FIX: Make this async for Supabase
+  const [tickerInput, setTickerInput] = useState("");
+  const [tickerLoading, setTickerLoading] = useState(false);
+
+  const handleAddTicker = async () => {
+    if (!tickerInput.trim()) return alert("Ticker cannot be empty");
+    setTickerLoading(true);
+    try {
+      await updateTicker(tickerInput); // Logic to insert new row
+      setTickerInput("");
+      alert("Announcement Added!");
+    } catch (err) {
+      alert("Failed to add ticker.");
+    } finally {
+      setTickerLoading(false);
+    }
+  };
+
   const handlePublish = async () => {
     if(!newEvent.title) return;
-    
     setLoading(true);
+    const finalEventData = { ...newEvent, type: newEvent.type === "Custom" ? customType : newEvent.type };
     try {
-      await addEvent(newEvent); // Calls the Supabase logic in Context
+      await addEvent(finalEventData); 
       setIsModalOpen(false);
       setNewEvent({ title: '', date: '', description: '', type: 'Workshop' });
-      alert("Event Published to Public Website!");
+      setCustomType("");
+      alert("Event Published!");
     } catch (err) {
       alert("Error publishing event.");
     } finally {
@@ -30,27 +55,79 @@ export default function WebsiteEditor() {
 
   return (
     <div className="space-y-6">
+      {/* Header Section */}
       <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Globe size={24} className="text-blue-500" /> Website Manager
           </h1>
-          <p className="text-slate-500 text-sm">Update the events displayed on the public landing page.</p>
+          <p className="text-slate-500 text-sm">Manage homepage events and scrolling announcements.</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)} 
-          className="px-5 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all flex items-center gap-2 active:scale-95"
+          onClick={() => {
+            setNewEvent({ title: '', date: '', description: '', type: 'Workshop' });
+            setIsModalOpen(true);
+          }} 
+          className="px-5 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all flex items-center gap-2"
         >
-          <Plus size={18} /> Publish New Event
+          <Plus size={18} /> New Event
         </button>
       </div>
 
-      {/* FIX: Show loading spinner if global data is fetching */}
+      {/* TICKER LIST MANAGEMENT */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Input Card */}
+        <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-fit">
+          <h2 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2">
+            <Megaphone className="text-yellow-500" size={20}/> New Ticker
+          </h2>
+          <textarea 
+            placeholder="Type announcement here..." 
+            className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition font-medium mb-4" 
+            rows="3"
+            value={tickerInput} 
+            onChange={e => setTickerInput(e.target.value)} 
+          />
+          <button 
+            onClick={handleAddTicker}
+            disabled={tickerLoading}
+            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition disabled:opacity-50"
+          >
+            {tickerLoading ? <Loader2 className="animate-spin" size={18}/> : <><Plus size={18}/> Add to Ticker</>}
+          </button>
+        </div>
+
+        {/* List Card */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <h2 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2">
+            <List className="text-blue-500" size={20}/> Active Scrolling Messages
+          </h2>
+          <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+            {Array.isArray(customTicker) && customTicker.length > 0 ? customTicker.map((t) => (
+              <div key={t.id} className="p-4 border border-slate-100 rounded-xl flex justify-between items-center group hover:bg-slate-50 transition-all">
+                <p className="text-sm font-medium text-slate-700 flex-1 pr-4">{t.value}</p>
+                <button 
+                  onClick={() => { if(confirm("Delete this ticker message?")) deleteTicker(t.id); }}
+                  className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )) : (
+              <div className="py-10 text-center text-slate-400 italic text-sm">No custom ticker messages active.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Events Grid Section */}
+      <div className="bg-slate-100/50 p-1 rounded-xl"></div>
+      <h2 className="font-bold text-xl text-slate-900 px-2">Published Events</h2>
+      
       {globalLoading ? (
         <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-300" size={40} /></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* FIX: Safety check for events.map */}
           {(events || []).map((event) => (
             <div key={event.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative group hover:border-blue-300 transition-all">
               <div className="flex items-start gap-4">
@@ -63,66 +140,38 @@ export default function WebsiteEditor() {
                   <p className="text-xs text-slate-500 mt-1">{event.date}</p>
                 </div>
               </div>
-              
-              <button 
-                onClick={() => { if(confirm("Remove this event from public site?")) deleteEvent(event.id); }}
-                className="absolute top-4 right-4 p-2 bg-red-50 text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all"
-              >
-                <Trash2 size={18} />
-              </button>
+              <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={() => { setNewEvent(event); setIsModalOpen(true); }} className="p-2 bg-blue-50 text-blue-400 hover:text-blue-600 rounded-lg"><Edit3 size={18} /></button>
+                <button onClick={() => { if(confirm("Remove this event?")) deleteEvent(event.id); }} className="p-2 bg-red-50 text-red-400 hover:text-red-600 rounded-lg"><Trash2 size={18} /></button>
+              </div>
             </div>
           ))}
-
-          {events.length === 0 && (
-            <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400">
-              No public events currently listed.
-            </div>
-          )}
         </div>
       )}
 
-      {/* Publish Modal */}
+      {/* Modal - Kept the same as previous version */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-xl">Create Public Event</h3>
+              <h3 className="font-bold text-xl">{newEvent.id ? 'Edit Event' : 'Create Event'}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
             </div>
-            
             <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Title</label>
-                <input className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="Event Name" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} />
-              </div>
-
+              <input className="w-full border border-slate-200 p-3 rounded-xl outline-none" placeholder="Event Name" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} />
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Date</label>
-                  <input type="date" className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Type</label>
-                  <select className="w-full border border-slate-200 p-3 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value})}>
-                    <option>Workshop</option><option>Seminar</option><option>Hackathon</option><option>Webinar</option>
-                  </select>
-                </div>
+                <input type="date" className="w-full border border-slate-200 p-3 rounded-xl outline-none" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} />
+                <select className="w-full border border-slate-200 p-3 rounded-xl bg-white outline-none" value={newEvent.type} onChange={e => setNewEvent({...newEvent, type: e.target.value})}>
+                  <option>Workshop</option><option>Seminar</option><option>Hackathon</option><option>Webinar</option><option>Custom</option>
+                </select>
               </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Short Description</label>
-                <textarea className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition" rows="3" placeholder="Details about the event..." value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})}></textarea>
-              </div>
+              {newEvent.type === "Custom" && <input className="w-full border border-slate-200 p-3 rounded-xl outline-none" placeholder="Custom Type" value={customType} onChange={e => setCustomType(e.target.value)} />}
+              <textarea className="w-full border border-slate-200 p-3 rounded-xl outline-none" rows="3" placeholder="Description" value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})}></textarea>
             </div>
-
             <div className="flex gap-3 mt-8">
               <button onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition">Cancel</button>
-              <button 
-                onClick={handlePublish} 
-                disabled={loading}
-                className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition flex items-center justify-center gap-2 disabled:bg-slate-400"
-              >
-                {loading ? <Loader2 className="animate-spin" size={18} /> : "Publish Live"}
+              <button onClick={handlePublish} disabled={loading} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition shadow-lg flex items-center justify-center gap-2">
+                {loading ? <Loader2 className="animate-spin" size={18} /> : (newEvent.id ? "Save Changes" : "Publish Live")}
               </button>
             </div>
           </div>

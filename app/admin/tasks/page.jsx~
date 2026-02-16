@@ -1,217 +1,246 @@
 "use client";
-import { useState } from 'react';
-import { useAdmin } from '../../../context/AdminContext';
-import { Plus, User, X, Trash2, FileText, Upload } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useAdmin } from '@/context/AdminContext';
+import { 
+  ClipboardList, Plus, Trash2, Calendar, User, 
+  MessageSquare, Send, CheckCircle2, Clock, X, Loader2, Paperclip, AlertCircle
+} from 'lucide-react';
+
+/* --- HELPER: FILE PILL --- */
+const FilePill = ({ file, onRemove }) => (
+  <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg w-fit mb-2 shadow-sm border border-blue-100 text-xs">
+    <Paperclip size={12} />
+    <span className="font-bold truncate max-w-[150px]">{file.name}</span>
+    <button onClick={onRemove} className="hover:bg-blue-200 p-1 rounded-full transition"><X size={10} /></button>
+  </div>
+);
 
 export default function TaskManager() {
-  const { tasks, interns, addTask, deleteTask } = useAdmin();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { 
+    tasks = [], addTask, deleteTask, updateTaskStatus, interns = [],
+    messages = [], sendUnifiedMessage, deleteUnifiedMessage, currentIntern: admin
+  } = useAdmin();
   
-  // Updated State: Added 'documents' array for multiple files
-  const [newTask, setNewTask] = useState({ 
-    title: '', 
-    intern: '', 
-    dueDate: '', 
-    priority: 'Medium',
-    documents: [] 
-  });
+  const [activeTab, setActiveTab] = useState('All');
+  const [showForm, setShowForm] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null); 
+  
+  // Chat State
+  const [chatMsg, setChatMsg] = useState('');
+  const [chatFile, setChatFile] = useState(null);
+  const chatEndRef = useRef(null);
 
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length > 0) {
-      // Store file metadata (In a real app, you'd upload these to a server and get URLs)
-      const newDocs = files.map(file => ({
-        name: file.name,
-        size: (file.size / 1024).toFixed(1) + ' KB',
-        url: URL.createObjectURL(file) // Fake URL for demo
-      }));
-      setNewTask(prev => ({ ...prev, documents: [...prev.documents, ...newDocs] }));
+  const [newTask, setNewTask] = useState({ 
+    title: '', assigned_to: '', intern_id: '', date: '', priority: 'Medium', description: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  // --- FILTER LOGIC ---
+  const filteredTasks = useMemo(() => {
+    let data = [...tasks].reverse();
+    if (activeTab !== 'All') {
+      data = data.filter(t => t.status === activeTab);
+    }
+    return data;
+  }, [tasks, activeTab]);
+
+  // --- CHAT FILTER ---
+  const taskMessages = useMemo(() => {
+    if (!selectedTask) return [];
+    return messages.filter(m => String(m.task_id) === String(selectedTask.id));
+  }, [messages, selectedTask]);
+
+  useEffect(() => {
+    if (selectedTask) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [taskMessages, selectedTask]);
+
+  // --- HANDLERS ---
+  const handleAddTask = async (e) => {
+    e.preventDefault();
+    if (!newTask.assigned_to) return alert("Please select an intern.");
+    
+    setLoading(true);
+    try {
+      const selectedIntern = interns.find(i => i.name === newTask.assigned_to);
+      await addTask({
+        ...newTask,
+        intern_id: selectedIntern ? selectedIntern.id : null,
+        status: 'Pending'
+      });
+      setNewTask({ title: '', assigned_to: '', intern_id: '', date: '', priority: 'Medium', description: '' });
+      setShowForm(false);
+      alert("Task assigned successfully!");
+    } catch (error) {
+      alert(`Failed to assign task: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const removeFile = (index) => {
-    setNewTask(prev => ({
-      ...prev,
-      documents: prev.documents.filter((_, i) => i !== index)
-    }));
+  const handleSendTaskMessage = async (e) => {
+    e.preventDefault();
+    if (!chatMsg.trim() && !chatFile) return;
+
+    try {
+      await sendUnifiedMessage({
+        sender_id: admin.id,
+        sender_name: 'Admin',
+        recipient_id: selectedTask.intern_id, 
+        recipient_name: selectedTask.assigned_to,
+        text: chatMsg,
+        file: chatFile,
+        type: 'task',
+        task_id: selectedTask.id
+      });
+      setChatMsg('');
+      setChatFile(null);
+    } catch (err) { alert("Failed to send message: " + err.message); }
   };
 
-  const handleAddTask = () => {
-    if(!newTask.title || !newTask.intern) return;
-    
-    addTask({ 
-      ...newTask, 
-      assignedTo: newTask.intern 
-    });
-    
-    setIsModalOpen(false);
-    setNewTask({ title: '', intern: '', dueDate: '', priority: 'Medium', documents: [] });
+  const handleVerifyTask = async () => {
+    if(confirm("Mark this task as Verified & Completed?")) {
+      await updateTaskStatus(selectedTask.id, 'Verified');
+      setSelectedTask(prev => ({ ...prev, status: 'Verified' }));
+    }
+  };
+
+  const handleRequestRevision = async () => {
+    const reason = prompt("Enter reason for revision:");
+    if(reason) {
+      await updateTaskStatus(selectedTask.id, 'In Progress');
+      await sendUnifiedMessage({
+        sender_id: admin.id, sender_name: 'Admin',
+        recipient_id: selectedTask.intern_id, recipient_name: selectedTask.assigned_to,
+        text: `⚠️ REVISION REQUESTED: ${reason}`,
+        type: 'task', task_id: selectedTask.id
+      });
+      setSelectedTask(prev => ({ ...prev, status: 'In Progress' }));
+    }
+  };
+
+  const handleDeleteUnifiedMsg = async (id) => { 
+    if(confirm("Delete message?")) await deleteUnifiedMessage(id); 
   };
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-8rem)]">
+    <div className="max-w-7xl mx-auto h-[calc(100vh-140px)] flex gap-6">
       
-      {/* --- TASK LIST BOARD --- */}
-      <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h1 className="text-xl font-bold text-slate-900">Task Board</h1>
-          <button onClick={() => setIsModalOpen(true)} className="flex items-center px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition">
-            <Plus size={16} className="mr-2" /> Assign Task
-          </button>
+      {/* LEFT PANE */}
+      <div className={`flex flex-col gap-6 transition-all duration-300 ${selectedTask ? 'w-1/2' : 'w-full'}`}>
+        <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+           <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
+              {['All', 'Pending', 'In Progress', 'Completed', 'Verified'].map(status => (
+                <button key={status} onClick={() => setActiveTab(status)} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition whitespace-nowrap ${activeTab === status ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}>{status}</button>
+              ))}
+           </div>
+           <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition shadow-md hover:shadow-lg ml-2 shrink-0"><Plus size={16}/> Assign Task</button>
         </div>
-        
-        <div className="overflow-y-auto p-4 space-y-3 custom-scrollbar">
-          {tasks.length > 0 ? (
-            tasks.map((task) => (
-              <div key={task.id} className="group relative p-4 rounded-xl border border-slate-100 hover:border-blue-300 bg-white transition shadow-sm hover:shadow-md">
-                
-                {/* Header */}
-                <div className="flex justify-between mb-2">
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide ${
-                    task.priority === 'High' ? 'bg-red-100 text-red-600' : 
-                    task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 
-                    'bg-green-100 text-green-700'
-                  }`}>
-                    {task.priority || 'Normal'} Priority
-                  </span>
-                  <span className="text-xs text-slate-400 font-medium">{task.dueDate || task.date}</span>
-                </div>
-                
-                {/* Title */}
-                <h3 className="font-bold text-slate-900 text-base mb-2 pr-8">{task.title}</h3>
-                
-                {/* Documents Indicator */}
-                {task.documents && task.documents.length > 0 && (
-                  <div className="flex items-center gap-1 text-xs text-blue-600 mb-3 bg-blue-50 w-fit px-2 py-1 rounded">
-                    <FileText size={12}/> {task.documents.length} Attachment{task.documents.length > 1 ? 's' : ''}
-                  </div>
-                )}
 
-                {/* Footer */}
-                <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                   <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                      <User size={12}/> 
-                   </div>
-                   {task.intern || task.assignedTo}
-                </div>
-
-                {/* Delete Button */}
-                <button 
-                  onClick={() => { if(confirm("Delete this task?")) deleteTask(task.id); }}
-                  className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
-                  title="Delete Task"
-                >
-                  <Trash2 size={16} />
-                </button>
-
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-20 text-slate-400">
-              <p>No tasks assigned.</p>
-            </div>
-          )}
+        <div className="flex-1 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden relative">
+           {(tasks || []).length > 0 ? (
+             <div className="h-full overflow-y-auto p-4 space-y-3 custom-scrollbar">
+               {filteredTasks.map((task) => (
+                 <div key={task.id} onClick={() => setSelectedTask(task)} className={`group relative p-5 rounded-xl border transition-all cursor-pointer shadow-sm hover:shadow-md ${selectedTask?.id === task.id ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
+                    <div className="flex justify-between items-start mb-2">
+                       <div>
+                          <h4 className="font-bold text-slate-800 text-base">{task.title}</h4>
+                          <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                             <span className="flex items-center gap-1 font-medium bg-slate-100 px-2 py-0.5 rounded"><User size={10}/> {task.assigned_to}</span>
+                             <span className="flex items-center gap-1"><Calendar size={10}/> {task.date}</span>
+                          </div>
+                       </div>
+                       <span className={`px-2 py-1 rounded text-[10px] font-black uppercase border ${task.status === 'Verified' ? 'bg-green-100 text-green-700 border-green-200' : task.status === 'Completed' ? 'bg-blue-100 text-blue-700 border-blue-200' : task.status === 'In Progress' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{task.status}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full mt-3 overflow-hidden"><div className={`h-full rounded-full ${task.status === 'Verified' ? 'w-full bg-green-500' : task.status === 'Completed' ? 'w-[90%] bg-blue-500' : task.status === 'In Progress' ? 'w-[50%] bg-yellow-500' : 'w-[5%] bg-slate-300'}`} /></div>
+                 </div>
+               ))}
+               {filteredTasks.length === 0 && <div className="text-center py-20 text-slate-400 text-sm">No tasks found.</div>}
+             </div>
+           ) : <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400"><ClipboardList size={48} className="mb-4 opacity-20"/><p>No tasks assigned yet.</p></div>}
         </div>
       </div>
 
-      {/* --- NEW TASK MODAL --- */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white p-6 rounded-2xl w-96 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-lg text-slate-900">Assign New Task</h3>
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
-            </div>
-            
-            <div className="space-y-4">
-              {/* Title */}
+      {/* RIGHT PANE: DETAIL & CHAT */}
+      {selectedTask && (
+        <div className="w-1/2 bg-white rounded-2xl border border-slate-200 shadow-xl flex flex-col overflow-hidden animate-slide-in">
+           <div className="p-5 border-b bg-slate-50 flex justify-between items-start">
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Title</label>
-                <input type="text" placeholder="e.g., Complete React Module" className="w-full border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-100"
-                   value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} />
+                 <h2 className="font-bold text-xl text-slate-900 leading-tight">{selectedTask.title}</h2>
+                 <p className="text-sm text-slate-500 mt-1">{selectedTask.description || "No description provided."}</p>
+                 <div className="flex gap-3 mt-3">
+                    <span className="flex items-center gap-1 text-xs font-bold text-slate-600"><User size={12}/> {selectedTask.assigned_to}</span>
+                    <span className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded ${selectedTask.priority === 'High' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}><AlertCircle size={10} /> {selectedTask.priority} Priority</span>
+                 </div>
               </div>
-              
-              {/* Assign To */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Assign To</label>
-                <select className="w-full border p-2 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-100"
-                   value={newTask.intern} onChange={e => setNewTask({...newTask, intern: e.target.value})}>
-                   <option value="">Select Intern</option>
-                   {interns.map(intern => (
-                     <option key={intern.id} value={intern.name}>{intern.name} ({intern.id})</option>
-                   ))}
-                </select>
-              </div>
+              <button onClick={() => setSelectedTask(null)} className="p-1 hover:bg-slate-200 rounded-full"><X size={18}/></button>
+           </div>
 
-              {/* Due Date */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Due Date</label>
-                <input type="date" className="w-full border p-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-100"
-                   value={newTask.dueDate} onChange={e => setNewTask({...newTask, dueDate: e.target.value})} />
-              </div>
-              
-              {/* Priority */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Priority</label>
-                <div className="flex gap-2">
-                   {['Low', 'Medium', 'High'].map(p => (
-                     <button key={p} onClick={() => setNewTask({...newTask, priority: p})}
-                       className={`flex-1 py-2 text-xs font-bold border rounded-lg transition ${
-                         newTask.priority === p ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 hover:bg-slate-50'
-                       }`}>
-                       {p}
-                     </button>
-                   ))}
-                </div>
-              </div>
-
-              {/* --- DOCUMENTS UPLOAD (OPTIONAL & MULTIPLE) --- */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex justify-between">
-                  Attachments 
-                  <span className="text-[10px] text-slate-400 font-normal normal-case">(Optional, Multiple)</span>
-                </label>
-                
-                {/* Upload Box */}
-                <div className="relative border-2 border-dashed border-slate-200 rounded-lg p-4 text-center hover:bg-slate-50 transition cursor-pointer mb-2">
-                   <input 
-                     type="file" 
-                     multiple 
-                     onChange={handleFileChange} 
-                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                   />
-                   <div className="flex flex-col items-center justify-center text-slate-400">
-                      <Upload size={16} className="mb-1"/>
-                      <span className="text-xs font-bold">Click to Upload Files</span>
-                   </div>
-                </div>
-
-                {/* Selected Files List */}
-                {newTask.documents.length > 0 && (
-                  <div className="space-y-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                    {newTask.documents.map((doc, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-xs p-1">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                           <FileText size={12} className="text-blue-500 shrink-0"/>
-                           <span className="truncate max-w-[180px] text-slate-700 font-medium">{doc.name}</span>
+           <div className="flex-1 bg-[#e5ddd5] p-4 overflow-y-auto flex flex-col gap-3 custom-scrollbar">
+              {taskMessages.length > 0 ? taskMessages.map((msg, i) => {
+                 // CHECK: AM I THE SENDER?
+                 const isMe = String(msg.sender_id) === String(admin.id) || msg.sender_name === 'Admin';
+                 
+                 // --- FIXED ALIGNMENT WRAPPER ---
+                 return (
+                   <div key={i} className={`w-full flex flex-col group ${isMe ? 'items-end' : 'items-start'}`}>
+                      <div className={`flex items-center gap-2 max-w-[85%] ${isMe ? 'flex-row-reverse' : ''}`}>
+                        <div className={`p-3 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-[#dcf8c6] text-slate-900 rounded-tr-none' : 'bg-white text-slate-900 rounded-tl-none'}`}>
+                           {!isMe && <p className="text-[10px] font-black text-blue-600 mb-1 uppercase tracking-widest">{msg.sender_name}</p>}
+                           {msg.file_url && <a href={msg.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-2 bg-black/5 rounded-lg text-xs font-bold mb-1 hover:bg-black/10 transition"><Paperclip size={12}/> {msg.file_name}</a>}
+                           <p className="whitespace-pre-wrap">{msg.text}</p>
+                           <p className="text-[9px] opacity-50 text-right mt-1 font-bold">{msg.time}</p>
                         </div>
-                        <button onClick={() => removeFile(idx)} className="text-slate-400 hover:text-red-500">
-                          <X size={14}/>
-                        </button>
+                        {isMe && <button onClick={() => handleDeleteUnifiedMsg(msg.id)} className="opacity-0 group-hover:opacity-100 p-1 text-red-300 hover:text-red-500 transition"><Trash2 size={12}/></button>}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                   </div>
+                 );
+              }) : <div className="flex-1 flex flex-col items-center justify-center opacity-40"><MessageSquare size={32} className="mb-2"/><p className="text-xs font-bold">Start the discussion</p></div>}
+              <div ref={chatEndRef} />
+           </div>
 
-            </div>
+           {selectedTask.status !== 'Verified' && (
+             <div className="p-2 bg-yellow-50 border-t border-yellow-100 flex justify-between items-center px-4">
+                <span className="text-xs font-bold text-yellow-700 uppercase tracking-wider">Review Actions</span>
+                <div className="flex gap-2">
+                   <button onClick={handleRequestRevision} className="px-3 py-1.5 bg-white border border-yellow-300 text-yellow-700 text-xs font-bold rounded-lg hover:bg-yellow-100">Request Revision</button>
+                   <button onClick={handleVerifyTask} className="px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 flex items-center gap-1"><CheckCircle2 size={12}/> Verify & Close</button>
+                </div>
+             </div>
+           )}
 
-            <div className="mt-8">
-              <button onClick={handleAddTask} className="px-4 py-3 bg-slate-900 text-white font-bold rounded-xl w-full shadow-lg hover:bg-slate-800 transition">
-                Confirm Assignment
-              </button>
-            </div>
-          </div>
+           <div className="p-3 bg-white border-t">
+              {chatFile && <FilePill file={chatFile} onRemove={() => setChatFile(null)} />}
+              <form onSubmit={handleSendTaskMessage} className="flex gap-2 items-center">
+                 <label className="p-2 hover:bg-slate-100 rounded-full cursor-pointer text-slate-500"><Paperclip size={20} /><input type="file" className="hidden" onChange={e => setChatFile(e.target.files[0])} /></label>
+                 <input type="text" placeholder="Type instruction or feedback..." className="flex-1 bg-slate-100 border-none outline-none px-4 py-2 rounded-xl text-sm focus:ring-2 focus:ring-blue-100" value={chatMsg} onChange={e => setChatMsg(e.target.value)} />
+                 <button type="submit" disabled={!chatMsg.trim() && !chatFile} className="p-2 bg-blue-600 text-white rounded-xl shadow-md hover:bg-blue-700 disabled:opacity-50"><Send size={18} /></button>
+              </form>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex justify-end">
+           <div className="w-full max-w-md bg-white h-full shadow-2xl p-6 flex flex-col animate-slide-in">
+              <div className="flex justify-between items-center mb-6"><h2 className="font-bold text-xl">Assign New Task</h2><button onClick={() => setShowForm(false)}><X className="text-slate-400 hover:text-slate-800"/></button></div>
+              <form onSubmit={handleAddTask} className="space-y-4 flex-1 overflow-y-auto">
+                 <div><label className="text-xs font-bold text-slate-500 uppercase">Title</label><input type="text" className="w-full p-3 border rounded-xl outline-none focus:border-blue-500" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} required /></div>
+                 <div>
+                   <label className="text-xs font-bold text-slate-500 uppercase">Assign To</label>
+                   <select className="w-full p-3 border rounded-xl bg-white outline-none" value={newTask.assigned_to} onChange={e => setNewTask({...newTask, assigned_to: e.target.value})} required>
+                      <option value="">Select Intern...</option>
+                      {(interns || []).map(i => <option key={i.id} value={i.name}>{i.name}</option>)}
+                   </select>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                   <div><label className="text-xs font-bold text-slate-500 uppercase">Due Date</label><input type="date" className="w-full p-3 border rounded-xl outline-none" value={newTask.date} onChange={e => setNewTask({...newTask, date: e.target.value})} required /></div>
+                   <div><label className="text-xs font-bold text-slate-500 uppercase">Priority</label><select className="w-full p-3 border rounded-xl bg-white outline-none" value={newTask.priority} onChange={e => setNewTask({...newTask, priority: e.target.value})}><option>Low</option><option>Medium</option><option>High</option></select></div>
+                 </div>
+                 <div><label className="text-xs font-bold text-slate-500 uppercase">Description</label><textarea rows="4" className="w-full p-3 border rounded-xl outline-none focus:border-blue-500" value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})}></textarea></div>
+                 <button disabled={loading} className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl mt-auto hover:bg-slate-800 transition shadow-lg">{loading ? <Loader2 className="animate-spin mx-auto"/> : 'Assign Task'}</button>
+              </form>
+           </div>
         </div>
       )}
     </div>

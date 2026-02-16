@@ -1,99 +1,220 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from '@/components/Navbar'; 
 import { useAdmin } from '@/context/AdminContext'; 
-import { motion } from 'framer-motion';
-import { Image as ImageIcon, Calendar, User } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ImageIcon, Maximize2, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
 export default function GalleryPage() {
-  const { gallery } = useAdmin();
+  const { gallery = [] } = useAdmin();
   const [isMounted, setIsMounted] = useState(false);
+  const [selectedImg, setSelectedImg] = useState(null);
+  
+  const scrollInterval = useRef(null);
+  const idleTimer = useRef(null);
 
-  // Fix Hydration Mismatch
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    
+    // Listen for actual user input to pause/reset auto-scroll
+    const inputEvents = ['mousemove', 'mousedown', 'wheel', 'touchstart', 'keydown'];
+    const handleUserInteraction = () => {
+      stopAutoScroll();
+      resetIdleTimer();
+    };
 
-  // 1. Safety Check: Ensure gallery is an array
-  // 2. Sorting Logic: Sort by Date descending (Latest first)
-  const displayGallery = isMounted && Array.isArray(gallery) 
-    ? [...gallery].sort((a, b) => {
-        // Fallback to time 0 if date is missing so it goes to the bottom
-        const dateA = new Date(a.date || 0); 
-        const dateB = new Date(b.date || 0);
-        return dateB - dateA; 
-      }) 
-    : [];
+    inputEvents.forEach(event => window.addEventListener(event, handleUserInteraction));
+    resetIdleTimer();
+
+    return () => {
+      inputEvents.forEach(event => window.removeEventListener(event, handleUserInteraction));
+      stopAutoScroll();
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+    };
+  }, [selectedImg]);
+
+  // --- AUTO-SCROLL LOGIC ---
+  const resetIdleTimer = () => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(startAutoScroll, 3000);
+  };
+
+  const startAutoScroll = () => {
+    if (scrollInterval.current || selectedImg) return; 
+    scrollInterval.current = setInterval(() => {
+      window.scrollBy({ top: 1, behavior: 'auto' });
+      if ((window.innerHeight + window.pageYOffset) >= document.documentElement.scrollHeight - 2) {
+        stopAutoScroll();
+      }
+    }, 35); 
+  };
+
+  const stopAutoScroll = () => {
+    if (scrollInterval.current) {
+      clearInterval(scrollInterval.current);
+      scrollInterval.current = null;
+    }
+  };
+
+  // --- DATE FORMATTING (DD-MM-YYYY) ---
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "00-00-2026";
+    const d = new Date(dateStr);
+    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+  };
+
+  // --- FLAT SEAMLESS DATA WITH DEFAULT IMAGE FIRST ---
+  const flatGallery = useMemo(() => {
+    if (!isMounted) return [];
+    
+    const allPhotos = [];
+
+    // 1. ALWAYS ADD DEFAULT IMAGE AT INDEX 0
+    allPhotos.push({
+      title: "EITP Innovation Hub", // Update this default title if needed
+      displayUrl: "dean1.jpeg", // <-- PUT YOUR DEFAULT IMAGE URL HERE
+      uniqueId: "default-image-001",
+      formattedDate: formatDate(new Date().toISOString()), 
+    });
+
+    // 2. PROCESS AND APPEND THE REST OF THE GALLERY
+    if (Array.isArray(gallery)) {
+      const sortedEntries = [...gallery].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+      sortedEntries.forEach((entry) => {
+        const urls = entry.url ? entry.url.split(',') : [];
+        urls.forEach((url, idx) => {
+          allPhotos.push({
+            ...entry,
+            displayUrl: url.trim(),
+            uniqueId: `${entry.id}-${idx}`,
+            formattedDate: formatDate(entry.date)
+          });
+        });
+      });
+    }
+    
+    return allPhotos;
+  }, [gallery, isMounted]);
+
+  // Lightbox Navigation
+  const activeIndex = flatGallery.findIndex(img => img.displayUrl === selectedImg);
+  const nextPhoto = (e) => {
+    e?.stopPropagation();
+    setSelectedImg(flatGallery[(activeIndex + 1) % flatGallery.length].displayUrl);
+  };
+  const prevPhoto = (e) => {
+    e?.stopPropagation();
+    setSelectedImg(flatGallery[(activeIndex - 1 + flatGallery.length) % flatGallery.length].displayUrl);
+  };
+
+  if (!isMounted) return null;
 
   return (
-    <main className="min-h-screen bg-slate-50 font-sans pb-20">
+    <main className="min-h-screen bg-black font-sans selection:bg-yellow-400 selection:text-black">
       <Navbar />
       
-      {/* Header Section */}
-      <div className="pt-32 pb-12 text-center px-6">
-        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
-          Campus Gallery
-        </h1>
-        <p className="text-slate-500 mt-4 max-w-2xl mx-auto text-lg leading-relaxed">
-           Explore moments captured by our students and faculty during various events and activities.
-        </p>
-      </div>
+      {/* --- SEAMLESS MOSAIC SHEET --- */}
+      <div className="pt-20 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 grid-flow-dense gap-0 w-full">
+        {flatGallery.length > 0 ? (
+          flatGallery.map((item, idx) => {
+            // Grid Span Calculation
+            const isBig = idx % 14 === 0; 
+            const isWide = idx % 6 === 0 && !isBig;
 
-      {/* Gallery Grid */}
-      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {displayGallery.length > 0 ? (
-          displayGallery.map((img, idx) => (
-            <motion.div 
-              key={img.id || idx}
-              layout // Smooth layout animation when filtering/sorting
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: idx * 0.05, duration: 0.5 }}
-              className="group relative aspect-[4/3] rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-shadow duration-300 cursor-pointer bg-slate-200"
-            >
-              {/* Image */}
-              <img 
-                src={img.url} 
-                alt={img.title || "Gallery Image"} 
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                loading="lazy"
-              />
-              
-              {/* Overlay Content */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
-                 
-                 <h3 className="text-white font-bold text-xl translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                   {img.title}
-                 </h3>
-                 
-                 <div className="flex flex-col gap-1 mt-2 translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
-                   {img.date && (
-                     <div className="flex items-center gap-2 text-yellow-400 text-xs font-bold uppercase tracking-wider mb-1">
-                        <Calendar size={14} />
-                        <span>{new Date(img.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                     </div>
-                   )}
+            // --- PROPORTIONAL TEXT SIZES ---
+            const titleSize = isBig ? "text-2xl md:text-4xl" : isWide ? "text-xl md:text-2xl" : "text-sm md:text-lg";
+            const metaSize = isBig ? "text-[12px]" : "text-[9px]";
+            const barWidth = isBig ? "border-l-4" : "border-l-2";
 
-                   <div className="flex items-center gap-2 text-slate-300 text-xs font-medium uppercase tracking-wider">
-                      <User size={12} />
-                      <span>By {img.uploader || 'Admin'}</span>
-                   </div>
-                 </div>
+            return (
+              <motion.div 
+                key={item.uniqueId}
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                viewport={{ once: true }}
+                onClick={() => {
+                  stopAutoScroll();
+                  setSelectedImg(item.displayUrl);
+                }}
+                className={`relative overflow-hidden cursor-zoom-in group border-[0.5px] border-white/5
+                  ${isBig ? 'col-span-2 row-span-2' : ''} 
+                  ${isWide ? 'col-span-2 row-span-1' : 'col-span-1 row-span-1'}
+                  aspect-square md:aspect-auto h-[260px] md:h-auto
+                `}
+              >
+                <img 
+                  src={item.displayUrl} 
+                  className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" 
+                  alt="" 
+                />
 
-              </div>
-            </motion.div>
-          ))
+                {/* --- OVERLAY: BOTTOM-LEFT ALIGNED --- */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-4 md:p-8">
+                  
+                  <div className="translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
+                    
+                    {/* YELLOW NAME (Adjusted Proportional Size) */}
+                    <h3 className={`text-yellow-400 font-black uppercase tracking-tighter leading-tight mb-3 drop-shadow-2xl ${titleSize}`}>
+                      {item.title}
+                    </h3>
+
+                    {/* CYAN METADATA (RGUKT - AP | DATE) */}
+                    <div className={`flex flex-col gap-1 border-yellow-400 pl-3 md:pl-4 ${barWidth}`}>
+                      <div className={`flex items-center flex-wrap gap-2 md:gap-3 text-cyan-400 font-black uppercase tracking-[0.2em] md:tracking-[0.3em] ${metaSize}`}>
+                        <span>RGUKT - AP</span>
+                        <span className="w-1 h-1 rounded-full bg-white/20"></span>
+                        <span>{item.formattedDate}</span>
+                      </div>
+                    </div>
+
+                    <div className="absolute bottom-1 right-0 opacity-0 group-hover:opacity-100 transition-all duration-700">
+                        <div className="bg-yellow-400 p-1.5 rounded-md text-black shadow-lg">
+                          <Maximize2 size={12} strokeWidth={4} />
+                        </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })
         ) : (
-          <div className="col-span-full py-32 text-center border-2 border-dashed border-slate-200 rounded-[2.5rem] bg-white">
-            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-               <ImageIcon size={40} className="text-slate-300" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900">Gallery is Empty</h3>
-            <p className="text-slate-500 mt-2">Check back later for updates!</p>
+          <div className="col-span-full py-40 text-center">
+             <ImageIcon size={64} className="mx-auto text-white/5 mb-4" />
+             <p className="text-white/10 font-black uppercase tracking-[1em]">Canvas Empty</p>
           </div>
         )}
       </div>
+
+      {/* --- LIGHTBOX MODAL --- */}
+      <AnimatePresence>
+        {selectedImg && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/98 backdrop-blur-3xl flex items-center justify-center p-4"
+          >
+            <button onClick={() => setSelectedImg(null)} className="absolute top-8 right-8 text-white/30 hover:text-red-500 transition-all z-[110]"><X size={44} /></button>
+            <div className="relative w-full h-full flex flex-col items-center justify-center">
+              <motion.img 
+                key={selectedImg}
+                src={selectedImg} 
+                className="max-w-full max-h-[80vh] object-contain rounded-3xl" 
+                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+              />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 md:px-0 pointer-events-none">
+                <button onClick={prevPhoto} className="pointer-events-auto text-white/10 hover:text-yellow-400 transition-all md:-ml-24"><ChevronLeft size={100} strokeWidth={1} /></button>
+                <button onClick={nextPhoto} className="pointer-events-auto text-white/10 hover:text-yellow-400 transition-all md:-mr-24"><ChevronRight size={100} strokeWidth={1} /></button>
+              </div>
+              <div className="mt-8 text-center px-6">
+                <h2 className="text-yellow-400 text-2xl md:text-4xl font-black uppercase tracking-tighter italic">{flatGallery[activeIndex]?.title}</h2>
+                <p className="text-cyan-400 font-black text-sm uppercase tracking-[0.5em] mt-3">
+                  {flatGallery[activeIndex]?.formattedDate} <span className="text-white/20 mx-4">|</span> RGUKT-AP
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
