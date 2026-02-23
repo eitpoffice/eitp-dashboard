@@ -81,7 +81,7 @@ export default function GalleryPage() {
 
     // Default Intro Image
     allPhotos.push({
-      title: "EITP Innovation Hub",
+      title: "Dean EITP",
       displayUrl: "dean1.jpeg",
       uniqueId: "default-image-001",
       dateMs: Date.now() + 100000, // Forces default to stay at the very top
