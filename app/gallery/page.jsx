@@ -3,37 +3,49 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from '@/components/Navbar'; 
 import { useAdmin } from '@/context/AdminContext'; 
 import { motion, AnimatePresence } from 'framer-motion';
-import { ImageIcon, Maximize2, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ImageIcon, Maximize2, X, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 
 export default function GalleryPage() {
   const { gallery = [] } = useAdmin();
   const [isMounted, setIsMounted] = useState(false);
   const [selectedImg, setSelectedImg] = useState(null);
+  const [numCols, setNumCols] = useState(1); // Default to 1 for mobile
   
   const scrollInterval = useRef(null);
   const idleTimer = useRef(null);
 
   useEffect(() => {
     setIsMounted(true);
+
+    // Responsive Column Logic
+    const updateCols = () => {
+      if (window.innerWidth >= 1280) setNumCols(4);      // XL screens
+      else if (window.innerWidth >= 1024) setNumCols(3); // LG screens
+      else if (window.innerWidth >= 640) setNumCols(2);  // Tablet
+      else setNumCols(1);                                // Mobile
+    };
     
-    // Listen for actual user input to pause/reset auto-scroll
-    const inputEvents = ['mousemove', 'mousedown', 'wheel', 'touchstart', 'keydown'];
+    updateCols(); // Set initial columns
+    window.addEventListener('resize', updateCols);
+
+    // Auto-scroll Logic
     const handleUserInteraction = () => {
       stopAutoScroll();
       resetIdleTimer();
     };
 
+    const inputEvents = ['mousemove', 'mousedown', 'wheel', 'touchstart', 'keydown'];
     inputEvents.forEach(event => window.addEventListener(event, handleUserInteraction));
     resetIdleTimer();
 
     return () => {
+      window.removeEventListener('resize', updateCols);
       inputEvents.forEach(event => window.removeEventListener(event, handleUserInteraction));
       stopAutoScroll();
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
   }, [selectedImg]);
 
-  // --- AUTO-SCROLL LOGIC ---
   const resetIdleTimer = () => {
     if (idleTimer.current) clearTimeout(idleTimer.current);
     idleTimer.current = setTimeout(startAutoScroll, 3000);
@@ -56,48 +68,60 @@ export default function GalleryPage() {
     }
   };
 
-  // --- DATE FORMATTING (DD-MM-YYYY) ---
   const formatDate = (dateStr) => {
-    if (!dateStr) return "00-00-2026";
+    if (!dateStr) return "2026";
     const d = new Date(dateStr);
     return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
   };
 
-  // --- FLAT SEAMLESS DATA WITH DEFAULT IMAGE FIRST ---
+  // --- DATA PROCESSING: Flatten & Sort by Time ---
   const flatGallery = useMemo(() => {
     if (!isMounted) return [];
-    
     const allPhotos = [];
 
-    // 1. ALWAYS ADD DEFAULT IMAGE AT INDEX 0
+    // Default Intro Image
     allPhotos.push({
-      title: "EITP Innovation Hub", // Update this default title if needed
-      displayUrl: "dean1.jpeg", // <-- PUT YOUR DEFAULT IMAGE URL HERE
+      title: "EITP Innovation Hub",
+      displayUrl: "dean1.jpeg",
       uniqueId: "default-image-001",
+      dateMs: Date.now() + 100000, // Forces default to stay at the very top
       formattedDate: formatDate(new Date().toISOString()), 
     });
 
-    // 2. PROCESS AND APPEND THE REST OF THE GALLERY
     if (Array.isArray(gallery)) {
-      const sortedEntries = [...gallery].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-
-      sortedEntries.forEach((entry) => {
+      gallery.forEach((entry) => {
         const urls = entry.url ? entry.url.split(',') : [];
+        const entryDateMs = new Date(entry.date || 0).getTime();
+        
         urls.forEach((url, idx) => {
           allPhotos.push({
             ...entry,
             displayUrl: url.trim(),
             uniqueId: `${entry.id}-${idx}`,
+            dateMs: entryDateMs,
             formattedDate: formatDate(entry.date)
           });
         });
       });
     }
     
-    return allPhotos;
+    // Sort strictly by Time Basis (Newest first)
+    return allPhotos.sort((a, b) => b.dateMs - a.dateMs);
   }, [gallery, isMounted]);
 
-  // Lightbox Navigation
+  // --- MASONRY LEFT-TO-RIGHT DISTRIBUTION LOGIC ---
+  const columnizedGallery = useMemo(() => {
+    // Create an array of empty arrays (one for each column)
+    const cols = Array.from({ length: numCols }, () => []);
+    
+    // Distribute images left-to-right across the columns sequentially
+    flatGallery.forEach((item, index) => {
+      cols[index % numCols].push(item);
+    });
+    
+    return cols;
+  }, [flatGallery, numCols]);
+
   const activeIndex = flatGallery.findIndex(img => img.displayUrl === selectedImg);
   const nextPhoto = (e) => {
     e?.stopPropagation();
@@ -111,75 +135,59 @@ export default function GalleryPage() {
   if (!isMounted) return null;
 
   return (
-    <main className="min-h-screen bg-black font-sans selection:bg-yellow-400 selection:text-black">
+    <main className="min-h-screen bg-[#050505] font-sans selection:bg-yellow-400 selection:text-black">
       <Navbar />
       
-      {/* --- SEAMLESS MOSAIC SHEET --- */}
-      <div className="pt-20 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 grid-flow-dense gap-0 w-full">
-        {flatGallery.length > 0 ? (
-          flatGallery.map((item, idx) => {
-            // Grid Span Calculation
-            const isBig = idx % 14 === 0; 
-            const isWide = idx % 6 === 0 && !isBig;
-
-            // --- PROPORTIONAL TEXT SIZES ---
-            const titleSize = isBig ? "text-2xl md:text-4xl" : isWide ? "text-xl md:text-2xl" : "text-sm md:text-lg";
-            const metaSize = isBig ? "text-[12px]" : "text-[9px]";
-            const barWidth = isBig ? "border-l-4" : "border-l-2";
-
-            return (
-              <motion.div 
-                key={item.uniqueId}
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true }}
-                onClick={() => {
-                  stopAutoScroll();
-                  setSelectedImg(item.displayUrl);
-                }}
-                className={`relative overflow-hidden cursor-zoom-in group border-[0.5px] border-white/5
-                  ${isBig ? 'col-span-2 row-span-2' : ''} 
-                  ${isWide ? 'col-span-2 row-span-1' : 'col-span-1 row-span-1'}
-                  aspect-square md:aspect-auto h-[260px] md:h-auto
-                `}
-              >
-                <img 
-                  src={item.displayUrl} 
-                  className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" 
-                  alt="" 
-                />
-
-                {/* --- OVERLAY: BOTTOM-LEFT ALIGNED --- */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-4 md:p-8">
+      {/* --- TRUE LEFT-TO-RIGHT MASONRY LAYOUT --- */}
+      {/* We use flex layout to render the sequential columns we built in JS */}
+      <div className="pt-24 px-4 flex gap-4 pb-20 items-start w-full mx-auto max-w-[2000px]">
+        {columnizedGallery.length > 0 ? (
+          columnizedGallery.map((column, colIdx) => (
+            <div key={`col-${colIdx}`} className="flex flex-col gap-4 flex-1 w-full min-w-0">
+              
+              {column.map((item) => (
+                <motion.div 
+                  key={item.uniqueId}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  onClick={() => {
+                    stopAutoScroll();
+                    setSelectedImg(item.displayUrl);
+                  }}
+                  className="relative group w-full bg-black border border-white/10 rounded-xl overflow-hidden cursor-pointer shadow-lg"
+                >
+                  {/* h-auto + w-full = No Cropping, Perfect Fit */}
+                  <img 
+                    src={item.displayUrl} 
+                    className="w-full h-auto block transition-transform duration-700 group-hover:scale-105" 
+                    alt={item.title} 
+                  />
                   
-                  <div className="translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
-                    
-                    {/* YELLOW NAME (Adjusted Proportional Size) */}
-                    <h3 className={`text-yellow-400 font-black uppercase tracking-tighter leading-tight mb-3 drop-shadow-2xl ${titleSize}`}>
-                      {item.title}
-                    </h3>
-
-                    {/* CYAN METADATA (RGUKT - AP | DATE) */}
-                    <div className={`flex flex-col gap-1 border-yellow-400 pl-3 md:pl-4 ${barWidth}`}>
-                      <div className={`flex items-center flex-wrap gap-2 md:gap-3 text-cyan-400 font-black uppercase tracking-[0.2em] md:tracking-[0.3em] ${metaSize}`}>
-                        <span>RGUKT - AP</span>
-                        <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                        <span>{item.formattedDate}</span>
-                      </div>
-                    </div>
-
-                    <div className="absolute bottom-1 right-0 opacity-0 group-hover:opacity-100 transition-all duration-700">
-                        <div className="bg-yellow-400 p-1.5 rounded-md text-black shadow-lg">
-                          <Maximize2 size={12} strokeWidth={4} />
-                        </div>
-                    </div>
+                  {/* ELEGANT HOVER OVERLAY */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-5 z-10">
+                     <div className="translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                       <h3 className="text-white font-black uppercase text-sm md:text-base tracking-tight mb-2">
+                         {item.title}
+                       </h3>
+                       <div className="flex justify-between items-center border-t border-white/20 pt-2">
+                          <div className="flex items-center gap-1.5 text-yellow-400 font-bold text-[10px] uppercase tracking-[0.2em]">
+                            <Clock size={10} />
+                            <span>{item.formattedDate}</span>
+                          </div>
+                          <div className="bg-white/10 p-1.5 rounded text-white backdrop-blur-sm group-hover:bg-yellow-400 group-hover:text-black transition-colors">
+                            <Maximize2 size={12} strokeWidth={2.5} />
+                          </div>
+                       </div>
+                     </div>
                   </div>
-                </div>
-              </motion.div>
-            );
-          })
+                </motion.div>
+              ))}
+              
+            </div>
+          ))
         ) : (
-          <div className="col-span-full py-40 text-center">
+          <div className="w-full py-40 text-center">
              <ImageIcon size={64} className="mx-auto text-white/5 mb-4" />
              <p className="text-white/10 font-black uppercase tracking-[1em]">Canvas Empty</p>
           </div>
@@ -191,26 +199,50 @@ export default function GalleryPage() {
         {selectedImg && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/98 backdrop-blur-3xl flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] bg-black/98 backdrop-blur-3xl flex items-center justify-center p-0"
           >
-            <button onClick={() => setSelectedImg(null)} className="absolute top-8 right-8 text-white/30 hover:text-red-500 transition-all z-[110]"><X size={44} /></button>
+            {/* Close Button */}
+            <button 
+              onClick={() => setSelectedImg(null)} 
+              className="absolute top-6 right-6 p-3 bg-white/5 hover:bg-red-500 text-white/50 hover:text-white rounded-full transition-all z-[110]"
+            >
+              <X size={28} />
+            </button>
+            
             <div className="relative w-full h-full flex flex-col items-center justify-center">
+              
               <motion.img 
                 key={selectedImg}
                 src={selectedImg} 
-                className="max-w-full max-h-[80vh] object-contain rounded-3xl" 
+                className="max-w-full max-h-[85vh] object-contain shadow-2xl" 
                 initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
               />
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 md:px-0 pointer-events-none">
-                <button onClick={prevPhoto} className="pointer-events-auto text-white/10 hover:text-yellow-400 transition-all md:-ml-24"><ChevronLeft size={100} strokeWidth={1} /></button>
-                <button onClick={nextPhoto} className="pointer-events-auto text-white/10 hover:text-yellow-400 transition-all md:-mr-24"><ChevronRight size={100} strokeWidth={1} /></button>
+
+              {/* Navigation */}
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 md:px-12 pointer-events-none">
+                <button onClick={prevPhoto} className="pointer-events-auto text-white/20 hover:text-yellow-400 hover:scale-110 transition-all">
+                  <ChevronLeft className="w-16 h-16 md:w-20 md:h-20" strokeWidth={1} />
+                </button>
+                <button onClick={nextPhoto} className="pointer-events-auto text-white/20 hover:text-yellow-400 hover:scale-110 transition-all">
+                  <ChevronRight className="w-16 h-16 md:w-20 md:h-20" strokeWidth={1} />
+                </button>
               </div>
-              <div className="mt-8 text-center px-6">
-                <h2 className="text-yellow-400 text-2xl md:text-4xl font-black uppercase tracking-tighter italic">{flatGallery[activeIndex]?.title}</h2>
-                <p className="text-cyan-400 font-black text-sm uppercase tracking-[0.5em] mt-3">
-                  {flatGallery[activeIndex]?.formattedDate} <span className="text-white/20 mx-4">|</span> RGUKT-AP
-                </p>
+
+              {/* Title Context */}
+              <div className="absolute bottom-6 md:bottom-10 text-center px-6">
+                <h2 className="text-white text-xl md:text-3xl font-black uppercase tracking-widest drop-shadow-lg">
+                    {flatGallery[activeIndex]?.title}
+                </h2>
+                <div className="flex items-center justify-center gap-3 mt-3 opacity-80">
+                   <div className="h-[1px] w-8 bg-yellow-400" />
+                   <p className="text-yellow-400 font-bold text-[10px] md:text-xs uppercase tracking-[0.4em]">
+                       {flatGallery[activeIndex]?.formattedDate} <span className="text-white/30 mx-2">|</span> RGUKT-AP
+                   </p>
+                   <div className="h-[1px] w-8 bg-yellow-400" />
+                </div>
               </div>
+
             </div>
           </motion.div>
         )}
