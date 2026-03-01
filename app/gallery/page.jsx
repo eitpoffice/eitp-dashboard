@@ -75,6 +75,7 @@ export default function GalleryPage() {
   };
 
   // --- DATA PROCESSING: Flatten & Sort by Time ---
+  // --- DATA PROCESSING: Flatten & Sort by Time ---
   const flatGallery = useMemo(() => {
     if (!isMounted) return [];
     const allPhotos = [];
@@ -82,9 +83,9 @@ export default function GalleryPage() {
     // Default Intro Image
     allPhotos.push({
       title: "Dean EITP",
-      displayUrl: "dean1.jpeg",
+      displayUrl: "dean1.jpeg", // Ensure local files start with a slash
       uniqueId: "default-image-001",
-      dateMs: Date.now() + 100000, // Forces default to stay at the very top
+      dateMs: Date.now() + 100000, 
       formattedDate: formatDate(new Date().toISOString()), 
     });
 
@@ -94,9 +95,17 @@ export default function GalleryPage() {
         const entryDateMs = new Date(entry.date || 0).getTime();
         
         urls.forEach((url, idx) => {
+          let safeUrl = url.trim();
+          
+          // THE FIX: Replace the blocked Supabase domain with your Vercel proxy
+          if (safeUrl.includes('supabase.co')) {
+             // This swaps "https://segxzbqltuumivgqpkcb.supabase.co" to "/api/supabase"
+             safeUrl = safeUrl.replace(/https:\/\/[a-zA-Z0-9]+\.supabase\.co/g, '/api/supabase');
+          }
+
           allPhotos.push({
             ...entry,
-            displayUrl: url.trim(),
+            displayUrl: safeUrl, // Now uses the masked URL!
             uniqueId: `${entry.id}-${idx}`,
             dateMs: entryDateMs,
             formattedDate: formatDate(entry.date)
