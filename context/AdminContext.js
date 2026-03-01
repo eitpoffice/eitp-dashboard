@@ -2,6 +2,39 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import emailjs from '@emailjs/browser';
+const makeUrlsSafe = (dataArray) => {
+  if (!Array.isArray(dataArray)) return dataArray;
+  
+  return dataArray.map(item => {
+    let newItem = { ...item };
+    
+    // Scan every field in the database row
+    Object.keys(newItem).forEach(key => {
+      // 1. Fix standard string URLs (like url, logo_url, file_url)
+      if (typeof newItem[key] === 'string' && newItem[key].includes('supabase.co')) {
+        newItem[key] = newItem[key].replace(/https:\/\/[a-zA-Z0-9-]+\.supabase\.co/g, '/api/supabase');
+      } 
+      // 2. Fix nested URLs inside JSON arrays (like Submission comments)
+      else if (Array.isArray(newItem[key])) {
+        newItem[key] = newItem[key].map(subItem => {
+          if (typeof subItem === 'object' && subItem !== null) {
+            let newSub = { ...subItem };
+            Object.keys(newSub).forEach(subKey => {
+              if (typeof newSub[subKey] === 'string' && newSub[subKey].includes('supabase.co')) {
+                newSub[subKey] = newSub[subKey].replace(/https:\/\/[a-zA-Z0-9-]+\.supabase\.co/g, '/api/supabase');
+              }
+            });
+            return newSub;
+          }
+          return subItem;
+        });
+      }
+    });
+    
+    return newItem;
+  });
+};
+// --------------------------------------
 
 const AdminContext = createContext();
 
@@ -97,7 +130,11 @@ export function AdminProvider({ children }) {
       .select('*')
       .order('created_at', { ascending: true });
     
-    if (data) setState(data);
+    if (data) {
+      // THE GLOBAL FIX: Clean all URLs before setting the state
+      const safeData = makeUrlsSafe(data);
+      setState(safeData);
+    }
     if (error) console.error(`Error fetching ${tableName}:`, error.message);
   };
 
