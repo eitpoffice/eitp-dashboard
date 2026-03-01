@@ -26,13 +26,17 @@ export default function InternDashboard() {
   
   const [taskTitle, setTaskTitle] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]); 
+  
+  // NEW GALLERY STATES
   const [galleryImgs, setGalleryImgs] = useState([]); 
   const [galleryTitle, setGalleryTitle] = useState('');
+  const [galleryDate, setGalleryDate] = useState(''); // Added date state
+  
   const [uploading, setUploading] = useState(false);
   
   const [hubMode, setHubMode] = useState('submissions');
   const [recipient, setRecipient] = useState(null);
-  const [searchQuery, setSearchQuery] = useState(''); // NEW: Search State
+  const [searchQuery, setSearchQuery] = useState(''); 
   
   const [chatMessage, setChatMessage] = useState('');
   const [chatFile, setChatFile] = useState(null);
@@ -56,19 +60,19 @@ export default function InternDashboard() {
     setVisibleNotifications(active);
     setReadMessages(JSON.parse(localStorage.getItem('eitp_read_messages')) || {});
     setReadReviews(JSON.parse(localStorage.getItem('eitp_read_reviews')) || {});
+    
+    // Set default gallery date to today
+    setGalleryDate(new Date().toISOString().split('T')[0]);
   }, [notifications]);
 
   const internName = currentIntern ? currentIntern.name : "Guest Intern";
   const mySubmissions = submissions.filter(s => s.intern_name === internName);
   const activeSub = submissions.find(s => s.id === activeSubId);
 
-  // --- NEW: SORTED & FILTERED LISTS ---
+  // --- SORTED & FILTERED LISTS ---
   const filteredSubmissions = useMemo(() => {
-    // 1. Get my submissions
     let data = submissions.filter(s => s.intern_name === internName);
-    // 2. Reverse to show newest first
     data = [...data].reverse();
-    // 3. Search Filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       data = data.filter(s => s.title.toLowerCase().includes(q));
@@ -81,7 +85,6 @@ export default function InternDashboard() {
         { id: 'all_admins', name: 'Admin Team', type: 'direct_admin' },
         ...interns.filter(i => i.id !== currentIntern?.id)
     ];
-    // Search Filter
     if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         contacts = contacts.filter(c => c.name.toLowerCase().includes(q));
@@ -171,11 +174,26 @@ export default function InternDashboard() {
     if(!galleryTitle || galleryImgs.length === 0) return;
     setUploading(true);
     try {
+        // Using the manually selected date, falling back to today if empty somehow
+        const finalDate = galleryDate || new Date().toISOString().split('T')[0];
+        
         for (const img of galleryImgs) {
-          await addImage({ title: galleryTitle, file: img, uploader: internName, date: new Date().toISOString().split('T')[0] });
+          await addImage({ 
+            title: galleryTitle, 
+            file: img, 
+            uploader: internName, 
+            date: finalDate 
+          });
         }
-        setGalleryTitle(''); setGalleryImgs([]); alert("Gallery updated!");
-    } catch (err) { alert("Gallery upload failed."); } finally { setUploading(false); }
+        setGalleryTitle(''); 
+        setGalleryImgs([]); 
+        setGalleryDate(new Date().toISOString().split('T')[0]); // Reset date to today
+        alert("Gallery updated!");
+    } catch (err) { 
+      alert("Gallery upload failed."); 
+    } finally { 
+      setUploading(false); 
+    }
   };
 
   const handleChatSend = async (e) => {
@@ -438,21 +456,75 @@ export default function InternDashboard() {
         {/* Gallery Section */}
         <div className="space-y-6">
            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-8 text-white relative overflow-hidden shadow-xl">
-             <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
-                <div className="md:col-span-1"><h2 className="text-2xl font-bold mb-2">Campus Gallery</h2><p className="text-blue-100 text-sm">Share moments from your department.</p></div>
-                <form onSubmit={handleGalleryUpload} className="md:col-span-2 flex flex-col md:flex-row gap-4">
-                   <input type="text" placeholder="Event Caption..." className="flex-1 px-4 py-3 rounded-xl text-slate-900 outline-none shadow-md" value={galleryTitle} onChange={e => setGalleryTitle(e.target.value)} required />
-                   <div className="relative bg-white text-blue-600 rounded-xl px-4 py-3 cursor-pointer min-w-[160px] flex items-center justify-center gap-2 group shadow-md"><input type="file" multiple accept="image/*" onChange={e => setGalleryImgs(Array.from(e.target.files))} className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer" /><Camera size={18}/><span>{galleryImgs.length > 0 ? `${galleryImgs.length} Selected` : "Choose Photos"}</span></div>
-                   <button disabled={uploading} type="submit" className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg">{uploading ? <Loader2 className="animate-spin mx-auto" /> : "Upload All"}</button>
+             <div className="relative z-10 flex flex-col lg:flex-row gap-8 items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">Campus Gallery</h2>
+                  <p className="text-blue-100 text-sm">Share moments from your department.</p>
+                </div>
+                
+                {/* MODIFIED UPLOAD BAR WITH DATE */}
+                <form onSubmit={handleGalleryUpload} className="flex flex-wrap lg:flex-nowrap gap-3 items-center w-full lg:w-auto">
+                   <input 
+                     type="text" 
+                     placeholder="Event Caption..." 
+                     className="flex-1 lg:w-48 px-4 py-3 rounded-xl text-slate-900 outline-none shadow-md text-sm font-medium" 
+                     value={galleryTitle} 
+                     onChange={e => setGalleryTitle(e.target.value)} 
+                     required 
+                   />
+                   
+                   <div className="flex flex-col relative w-full lg:w-40 bg-white rounded-xl shadow-md px-3 py-1.5 border border-transparent focus-within:border-blue-300">
+                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Event Date</span>
+                     <input 
+                       type="date" 
+                       className="w-full text-slate-800 outline-none text-xs font-bold bg-transparent" 
+                       value={galleryDate} 
+                       onChange={e => setGalleryDate(e.target.value)} 
+                       required 
+                     />
+                   </div>
+
+                   <div className="relative bg-white text-blue-600 rounded-xl px-4 py-3 cursor-pointer min-w-[160px] flex items-center justify-center gap-2 group shadow-md hover:bg-blue-50 transition-colors">
+                     <input 
+                       type="file" 
+                       multiple 
+                       accept="image/*" 
+                       onChange={e => setGalleryImgs(Array.from(e.target.files))} 
+                       className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer" 
+                       required
+                     />
+                     <Camera size={18}/>
+                     <span className="font-bold text-sm">{galleryImgs.length > 0 ? `${galleryImgs.length} Selected` : "Choose Photos"}</span>
+                   </div>
+                   
+                   <button 
+                     disabled={uploading} 
+                     type="submit" 
+                     className="w-full lg:w-auto px-6 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-colors"
+                   >
+                     {uploading ? <Loader2 className="animate-spin mx-auto" size={20} /> : "Upload"}
+                   </button>
                 </form>
              </div>
            </div>
+           
+           {/* Gallery Grid */}
            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
              {gallery.map(img => (
                <div key={img.id} className="group relative rounded-xl overflow-hidden aspect-square shadow-sm border border-slate-200 bg-white">
                   <img src={img.url} alt={img.title} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col justify-end p-3"><p className="text-white text-xs font-bold truncate">{img.title}</p><p className="text-slate-300 text-[10px]">By {img.uploader}</p></div>
-                  {img.uploader === internName && <button onClick={() => handleDeleteImage(img.id)} className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full shadow-lg z-20 transition hover:bg-red-600"><Trash2 size={14} /></button>}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                    <p className="text-white text-xs font-bold truncate">{img.title}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-blue-300 text-[9px] font-bold uppercase tracking-widest">{img.date}</p>
+                      <p className="text-slate-300 text-[9px]">By {img.uploader}</p>
+                    </div>
+                  </div>
+                  {img.uploader === internName && (
+                    <button onClick={() => handleDeleteImage(img.id)} className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full shadow-lg z-20 transition hover:bg-red-600 scale-0 group-hover:scale-100 origin-center">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                </div>
              ))}
            </div>

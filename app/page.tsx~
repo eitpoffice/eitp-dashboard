@@ -1,18 +1,19 @@
 "use client";
-import { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar'; 
 import { useAdmin } from '@/context/AdminContext'; 
 import { 
-  ArrowRight, Calendar, ChevronRight, MapPin, 
-  Users, TrendingUp, Quote, Award, BookOpen, Briefcase, Rocket, Clock, CheckCircle2, ExternalLink
+  ArrowRight, Calendar, MapPin, Users, TrendingUp, Quote, 
+  Award, BookOpen, Briefcase, Rocket, ExternalLink
 } from 'lucide-react';
 import { 
-  motion, AnimatePresence, useInView, useMotionValue, useSpring, useTransform, useScroll, useMotionTemplate, animate 
+  motion, AnimatePresence, useInView, useMotionValue, 
+  useSpring, useTransform, useScroll, useMotionTemplate, animate, Variants 
 } from 'framer-motion';
 
-/* --- ANIMATION VARIANTS --- */
-const fadeInUp = {
+/* --- ANIMATION VARIANTS (Typed) --- */
+const fadeInUp: Variants = {
   hidden: { opacity: 0, y: 60 },
   visible: { 
     opacity: 1, 
@@ -21,7 +22,7 @@ const fadeInUp = {
   }
 };
 
-const staggerContainer = {
+const staggerContainer: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -29,8 +30,15 @@ const staggerContainer = {
   }
 };
 
-/* --- 1. 3D HOVER TILT CARD COMPONENT --- */
-function TiltCard({ children, className = "", style = {}, ...rest }) {
+/* --- 1. 3D HOVER TILT CARD COMPONENT (Typed) --- */
+interface TiltCardProps {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  [key: string]: any;
+}
+
+function TiltCard({ children, className = "", style = {}, ...rest }: TiltCardProps) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const mouseXSpring = useSpring(x, { stiffness: 400, damping: 30 });
@@ -38,7 +46,7 @@ function TiltCard({ children, className = "", style = {}, ...rest }) {
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["8deg", "-8deg"]);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-8deg", "8deg"]);
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const width = rect.width;
     const height = rect.height;
@@ -57,97 +65,144 @@ function TiltCard({ children, className = "", style = {}, ...rest }) {
     <motion.div
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      style={{ rotateX, rotateY, transformStyle: "preserve-3d", ...style }}
+      style={{ rotateX, rotateY, transformStyle: "preserve-3d", ...style } as any}
       className={className}
       {...rest}
     >
-      {children}
+      <div style={{ transform: "translateZ(20px)" }}>
+        {children}
+      </div>
     </motion.div>
   );
 }
 
-/* --- 2. HIGH LEVEL STATS COUNTER (TWEEN PHYSICS = NO FLUCTUATION) --- */
-function StatCounter({ value, priority = false }) {
+/* --- 2. HIGH LEVEL STATS COUNTER (Typed) --- */
+function StatCounter({ value, priority = false }: { value: string; priority?: boolean }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { margin: "-20px", once: false }); 
   const count = useMotionValue(0);
   const displayValue = useTransform(count, (latest) => Math.floor(latest));
 
+  const numberMatch = value.match(/\d+/);
+  const numericValue = numberMatch ? parseInt(numberMatch[0]) : 0;
+  const suffix = value.replace(/\d/g, '');
+
   useEffect(() => {
     if (isInView) {
-      const numericValue = parseInt(value.replace(/\D/g, ''));
-      // animate() forces the number to stop exactly at the target without any bouncing
       const controls = animate(count, numericValue, { 
-        duration: priority ? 1 : 2.5, // Priority reaches target extremely fast
+        duration: priority ? 1 : 2.5, 
         ease: "easeOut" 
       });
-      return controls.stop;
+      return () => controls.stop();
     } else {
-      count.set(0); // Resets instantly so it animates on return
+      count.set(0);
     }
-  }, [isInView, count, value, priority]);
+  }, [isInView, count, numericValue, priority]);
 
   return (
-    <span ref={ref}>
+    <span ref={ref} className="inline-flex">
       <motion.span>{displayValue}</motion.span>
-      {value.replace(/[0-9]/g, '')}
+      <span>{suffix}</span>
     </span>
   );
 }
 
 export default function Home() {
-  // ALL HOOKS CALLED AT THE TOP LEVEL TO PREVENT REACT ERRORS
   const { events = [], gallery = [], customTicker = [] } = useAdmin();
   const [isMounted, setIsMounted] = useState(false);
   const [tickerIndex, setTickerIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState('running');
+  const [activeTab, setActiveTab] = useState<'running' | 'upcoming' | 'completed'>('running');
 
   // Top Progress Bar Logic
   const { scrollYProgress } = useScroll();
 
+  // Global Spotlight Cursor Logic
+  const globalX = useMotionValue(0);
+  const globalY = useMotionValue(0);
+  const spotlightBg = useMotionTemplate`radial-gradient(500px circle at ${globalX}px ${globalY}px, rgba(59, 130, 246, 0.15), transparent 80%)`;
 
+  useEffect(() => {
+    setIsMounted(true);
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      globalX.set(e.clientX);
+      globalY.set(e.clientY);
+    };
+    window.addEventListener("mousemove", handleGlobalMouseMove);
+    return () => window.removeEventListener("mousemove", handleGlobalMouseMove);
+  }, [globalX, globalY]);
 
   // --- DATE FORMATTING HELPER ---
-  const formatDate = (dateStr) => {
+  const formatDate = (dateStr: string) => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
     return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
   };
 
   // --- LOGIC: FLATTEN AND GET LATEST 5 INDIVIDUAL IMAGES ---
   const displayImages = useMemo(() => {
     if (!isMounted || !gallery.length) return [];
-    const allPhotos = [];
-    gallery.forEach((entry) => {
+    const allPhotos: any[] = [];
+    
+    gallery.forEach((entry: any) => {
       const urls = entry.url ? entry.url.split(',') : [];
-      urls.forEach((url) => {
+      
+      urls.forEach((url: string) => {
         allPhotos.push({
           ...entry,
-          singleUrl: url.trim(),
+          singleUrl: url.trim(), 
           displayDate: formatDate(entry.date)
         });
       });
     });
-    return allPhotos.sort((a, b) => new Date(b.date || b.created_at).getTime() - new Date(a.date || a.created_at).getTime()).slice(0, 5);
+    
+    return allPhotos
+      .sort((a, b) => new Date(b.date || b.created_at).getTime() - new Date(a.date || a.created_at).getTime())
+      .slice(0, 5);
   }, [gallery, isMounted]);
 
-  // --- REFACTORED CATEGORIES FOR FILTERING ---
+  // --- UPDATED CATEGORIES FOR FILTERING (Start & Deadline Logic) ---
   const eventCategories = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayTime = today.getTime();
-    const upcoming = []; const running = []; const completed = [];
+    
+    const upcoming: any[] = []; 
+    const running: any[] = []; 
+    const completed: any[] = [];
 
-    events.forEach((e) => {
-      const eDate = new Date(e.date);
-      eDate.setHours(0, 0, 0, 0);
-      const eTime = eDate.getTime();
-      if (eTime === todayTime) running.push(e);
-      else if (eTime > todayTime) upcoming.push(e);
-      else completed.push(e);
+    events.forEach((e: any) => {
+      // Fallback: If no start_date is set, fallback to the old 'date'
+      const startDateStr = e.start_date || e.date;
+      // Fallback: If no deadline is set, assume it ends on the start date
+      const endDateStr = e.deadline || e.start_date || e.date;
+
+      if (!startDateStr) return; // Skip completely empty events
+
+      const start = new Date(startDateStr);
+      start.setHours(0, 0, 0, 0);
+      const startTime = start.getTime();
+
+      const end = new Date(endDateStr);
+      end.setHours(23, 59, 59, 999);
+      const endTime = end.getTime();
+
+      if (todayTime >= startTime && todayTime <= endTime) {
+        running.push(e);
+      } else if (todayTime < startTime) {
+        upcoming.push(e);
+      } else {
+        completed.push(e);
+      }
     });
 
-    const sortByDateDesc = (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime();
+    // Sort by whichever start date is most recent
+    const sortByDateDesc = (a: any, b: any) => {
+      const timeA = new Date(a.start_date || a.date).getTime();
+      const timeB = new Date(b.start_date || b.date).getTime();
+      return timeB - timeA;
+    };
+
     return {
       running: running.sort(sortByDateDesc),
       upcoming: upcoming.sort(sortByDateDesc), 
@@ -157,19 +212,24 @@ export default function Home() {
 
   // --- TICKER DATA LOGIC ---
   const tickerItems = useMemo(() => {
-    let items = [];
+    let items: string[] = [];
     if (eventCategories.running.length > 0) {
-      eventCategories.running.forEach((e) => items.push(`ONGOING: ${e.title} (${e.date})`));
+      eventCategories.running.forEach((e: any) => {
+        const displayStr = e.start_date || e.date;
+        items.push(`ONGOING: ${e.title} (${formatDate(displayStr)})`);
+      });
     }
     if (Array.isArray(customTicker)) {
-      customTicker.forEach((t) => { if (t.value?.trim()) items.push(t.value); });
+      customTicker.forEach((t: any) => { if (t.value?.trim()) items.push(t.value); });
     }
     return items;
   }, [eventCategories.running, customTicker]);
 
   useEffect(() => {
     if (tickerItems.length <= 1) return;
-    const timer = setInterval(() => setTickerIndex((prev) => (prev + 1) % tickerItems.length), 6100); 
+    const timer = setInterval(() => {
+        setTickerIndex((prev) => (prev + 1) % tickerItems.length);
+    }, 6100); 
     return () => clearInterval(timer);
   }, [tickerItems.length]);
 
@@ -185,7 +245,7 @@ export default function Home() {
       {/* --- FEATURE 2: GLOBAL SPOTLIGHT CURSOR --- */}
       <motion.div
         className="pointer-events-none fixed inset-0 z-50 transition-opacity duration-300"
-
+        style={{ background: spotlightBg }}
       />
 
       {/* NAVBAR LOADS IMMEDIATELY */}
@@ -199,7 +259,14 @@ export default function Home() {
           </div>
           <div className="flex-1 relative h-full flex items-center overflow-hidden">
             <AnimatePresence mode="wait">
-              <motion.div key={`ticker-${tickerIndex}`} initial={{ x: "100%" }} animate={{ x: "-110%" }} exit={{ x: "-110%" }} transition={{ duration: 6, ease: "linear" }} className="absolute whitespace-nowrap text-sm font-bold text-slate-100 flex items-center gap-3">
+              <motion.div 
+                key={`ticker-${tickerIndex}`} 
+                initial={{ x: "100%" }} 
+                animate={{ x: "-110%" }} 
+                exit={{ x: "-110%" }} 
+                transition={{ duration: 6, ease: "linear" }} 
+                className="absolute whitespace-nowrap text-sm font-bold text-slate-100 flex items-center gap-3"
+              >
                 <span className="text-blue-500 text-xl font-black">✦</span> {tickerItems[tickerIndex]}
               </motion.div>
             </AnimatePresence>
@@ -210,7 +277,7 @@ export default function Home() {
       {/* --- HERO SECTION --- */}
       <section className={`relative pb-16 overflow-hidden ${(isMounted && tickerItems.length > 0) ? 'pt-20' : 'pt-32'}`}>
         <div className="absolute inset-0 z-0 opacity-40">
-           <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
         </div>
 
         <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
@@ -218,22 +285,23 @@ export default function Home() {
             <Award size={14} /> RGUKT - AP
           </motion.div>
           
-          <motion.h1 
-            initial="hidden" animate="visible" variants={fadeInUp}
-            className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-6 relative inline-block text-transparent bg-clip-text bg-slate-900"
-            style={{
-              backgroundImage: 'linear-gradient(110deg, #1e293b 45%, #ffffff 50%, #1e293b 55%)',
-              backgroundSize: '250% 100%',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              color: 'transparent'
-            }}
-            animate={{ opacity: 1, y: 0, backgroundPosition: ["100% 0%", "-100% 0%"] }}
-            transition={{ opacity: { duration: 0.6, ease: "easeOut" }, backgroundPosition: { repeat: Infinity, duration: 4, ease: "linear" } }}
-          >
-            Entrepreneurship Incubation <br />
-            Training & Placements
-          </motion.h1>
+          <motion.div initial="hidden" animate="visible" variants={fadeInUp}>
+            <motion.h1 
+              className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-6 relative inline-block text-transparent bg-clip-text bg-slate-900"
+              style={{
+                backgroundImage: 'linear-gradient(110deg, #1e293b 45%, #ffffff 50%, #1e293b 55%)',
+                backgroundSize: '250% 100%',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent'
+              }}
+              animate={{ backgroundPosition: ["100% 0%", "-100% 0%"] }}
+              transition={{ backgroundPosition: { repeat: Infinity, duration: 4, ease: "linear" } }}
+            >
+              Entrepreneurship Incubation <br />
+              Training & Placements
+            </motion.h1>
+          </motion.div>
           
           <motion.p initial="hidden" animate="visible" variants={fadeInUp} className="text-lg md:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed mb-10 font-medium">
             Bridging the gap between academic potential and industrial success. We cultivate innovation through world-class training and real-time projects.
@@ -274,7 +342,7 @@ export default function Home() {
           <motion.div 
             initial="hidden" 
             whileInView="visible" 
-            viewport={{ once: false, amount: 0.3 }} // Reveal on scroll Up & Down
+            viewport={{ once: false, amount: 0.3 }} 
             variants={fadeInUp} 
             className="bg-slate-900 text-white rounded-[2rem] p-8 md:p-16 shadow-2xl flex flex-col md:flex-row items-center gap-12"
           >
@@ -345,7 +413,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* --- EVENT SCHEDULE (WITH FEATURE 1: 3D TILT CARDS & SMALLER BOXES) --- */}
+      {/* --- EVENT SCHEDULE (FIXED: Button on Side) --- */}
       <section className="py-24 max-w-5xl mx-auto px-6 bg-white">
         <div className="text-center mb-16">
           <motion.h2 
@@ -365,7 +433,7 @@ export default function Home() {
             variants={fadeInUp} 
             className="flex justify-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit mx-auto border border-slate-200"
           >
-            {['running', 'upcoming', 'completed'].map((tab) => (
+            {['running', 'upcoming', 'completed'].map((tab: any) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -395,7 +463,7 @@ export default function Home() {
               className="space-y-5"
             >
               {eventCategories[activeTab].length > 0 ? (
-                eventCategories[activeTab].map((e) => (
+                eventCategories[activeTab].map((e: any) => (
                   <motion.div 
                     key={e.id}
                     initial={{ opacity: 0, y: 30 }}
@@ -403,28 +471,37 @@ export default function Home() {
                     viewport={{ once: false, amount: 0.2 }}
                     transition={{ type: "spring", stiffness: 100, damping: 15 }}
                   >
-                    <TiltCard className="group relative w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-2xl transition-shadow duration-300 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-l-8 border-l-slate-900 hover:border-l-blue-600 overflow-hidden">
+                    {/* FIXED CONTAINER: flex-row ensures button is always on the right */}
+                    <TiltCard className="group relative w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-2xl transition-shadow duration-300 flex flex-row justify-between items-center gap-6 border-l-8 border-l-slate-900 hover:border-l-blue-600 overflow-hidden">
                       <div className="absolute top-0 right-0 w-20 h-20 bg-slate-50 rounded-bl-[3rem] -z-10 group-hover:bg-blue-50 transition-colors" />
                       
-                      <div className="flex-1 text-left">
+                      {/* Text Section (Flexible width) */}
+                      <div className="flex-1 min-w-0 text-left">
                         <div className="flex items-center gap-4 mb-3">
                           <span className="bg-slate-900 text-yellow-400 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-[0.2em]">
                              {activeTab}
                           </span>
-                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{formatDate(e.date)}</span>
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                            {formatDate(e.start_date || e.date)}
+                            {/* NEW: Safely handles single day vs multi-day events */}
+                            {(e.deadline && e.deadline !== (e.start_date || e.date)) ? ` TO ${formatDate(e.deadline)}` : ''}
+                          </span>
                           <span className="hidden md:inline-block text-[9px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 px-3 py-1 rounded-full">{e.type}</span>
                         </div>
                         
                         <h4 className="font-black text-slate-900 text-xl md:text-3xl uppercase tracking-tighter leading-none group-hover:text-blue-600 transition-colors">
                           {e.title}
                         </h4>
-                        <p className="text-xs md:text-sm text-slate-500 mt-3 leading-relaxed max-w-2xl line-clamp-2">
+                        
+                        {/* NEW: whitespace-pre-wrap ensures paragraph formatting stays exactly as the admin typed it */}
+                        <p className="text-xs md:text-sm text-slate-500 mt-3 leading-relaxed max-w-2xl whitespace-pre-wrap">
                           {e.description || "Discover industrial excellence and technical mastery in this exclusive EITP session."}
                         </p>
                       </div>
                       
-                      <div className="w-full md:w-auto">
-                        <Link href="/activities" className="w-full md:w-auto bg-slate-900 text-white font-black px-8 py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg uppercase text-[10px] tracking-widest">
+                      {/* Button Section (Fixed to side) */}
+                      <div className="shrink-0">
+                        <Link href="/activities" className="bg-slate-900 text-white font-black px-6 py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg uppercase text-[10px] tracking-widest">
                           Details <ExternalLink size={14} />
                         </Link>
                       </div>

@@ -5,12 +5,65 @@ import Navbar from '@/components/Navbar';
 import { useAdmin } from '@/context/AdminContext'; 
 import { 
   ArrowRight, Calendar, MapPin, Users, TrendingUp, Quote, 
-  Award, BookOpen, Briefcase, Rocket, ExternalLink
+  Award, BookOpen, Briefcase, Rocket, ExternalLink, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { 
   motion, AnimatePresence, useInView, useMotionValue, 
   useSpring, useTransform, useScroll, useMotionTemplate, animate, Variants 
 } from 'framer-motion';
+
+// --- HELPER: FORMAT LINKS ---
+const formatTextWithLinks = (text: string) => {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a 
+          key={i} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-blue-500 font-bold hover:text-blue-700 underline underline-offset-2 transition-colors break-all"
+          onClick={(e) => e.stopPropagation()} 
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
+/* --- CUSTOM COMPONENT: EXPANDABLE DESCRIPTION --- */
+function ExpandableDescription({ text }: { text: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isLong = text?.length > 150;
+
+  return (
+    <div className="mt-3">
+      <div className="relative">
+        <p className={`text-xs md:text-sm text-slate-500 leading-relaxed whitespace-pre-wrap transition-all duration-300 ${!isExpanded && isLong ? 'max-h-[4.5rem] overflow-hidden' : 'max-h-[1000px]'}`}>
+          {formatTextWithLinks(text)}
+        </p>
+        {!isExpanded && isLong && (
+          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none"></div>
+        )}
+      </div>
+      
+      {isLong && (
+        <button 
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsExpanded(!isExpanded); }}
+          className="mt-2 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800 transition-colors"
+        >
+          {isExpanded ? <>View Less <ChevronUp size={12}/></> : <>View More <ChevronDown size={12}/></>}
+        </button>
+      )}
+    </div>
+  );
+}
 
 /* --- ANIMATION VARIANTS (Typed) --- */
 const fadeInUp: Variants = {
@@ -172,12 +225,10 @@ export default function Home() {
     const completed: any[] = [];
 
     events.forEach((e: any) => {
-      // Fallback: If no start_date is set, fallback to the old 'date'
       const startDateStr = e.start_date || e.date;
-      // Fallback: If no deadline is set, assume it ends on the start date
       const endDateStr = e.deadline || e.start_date || e.date;
 
-      if (!startDateStr) return; // Skip completely empty events
+      if (!startDateStr) return;
 
       const start = new Date(startDateStr);
       start.setHours(0, 0, 0, 0);
@@ -196,7 +247,6 @@ export default function Home() {
       }
     });
 
-    // Sort by whichever start date is most recent
     const sortByDateDesc = (a: any, b: any) => {
       const timeA = new Date(a.start_date || a.date).getTime();
       const timeB = new Date(b.start_date || b.date).getTime();
@@ -413,7 +463,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* --- EVENT SCHEDULE (FIXED: Button on Side) --- */}
+      {/* --- EVENT SCHEDULE --- */}
       <section className="py-24 max-w-5xl mx-auto px-6 bg-white">
         <div className="text-center mb-16">
           <motion.h2 
@@ -471,37 +521,34 @@ export default function Home() {
                     viewport={{ once: false, amount: 0.2 }}
                     transition={{ type: "spring", stiffness: 100, damping: 15 }}
                   >
-                    {/* FIXED CONTAINER: flex-row ensures button is always on the right */}
-                    <TiltCard className="group relative w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-2xl transition-shadow duration-300 flex flex-row justify-between items-center gap-6 border-l-8 border-l-slate-900 hover:border-l-blue-600 overflow-hidden">
+                    {/* FIXED: The layout is now flex-col on mobile, flex-row on desktop, ensuring the button aligns properly */}
+                    <TiltCard className="group relative w-full bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-2xl transition-shadow duration-300 flex flex-col md:flex-row md:items-start justify-between gap-6 border-l-8 border-l-slate-900 hover:border-l-blue-600 overflow-hidden">
                       <div className="absolute top-0 right-0 w-20 h-20 bg-slate-50 rounded-bl-[3rem] -z-10 group-hover:bg-blue-50 transition-colors" />
                       
-                      {/* Text Section (Flexible width) */}
+                      {/* Text Section */}
                       <div className="flex-1 min-w-0 text-left">
-                        <div className="flex items-center gap-4 mb-3">
+                        <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-3">
                           <span className="bg-slate-900 text-yellow-400 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-[0.2em]">
                              {activeTab}
                           </span>
                           <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
                             {formatDate(e.start_date || e.date)}
-                            {/* NEW: Safely handles single day vs multi-day events */}
                             {(e.deadline && e.deadline !== (e.start_date || e.date)) ? ` TO ${formatDate(e.deadline)}` : ''}
                           </span>
-                          <span className="hidden md:inline-block text-[9px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 px-3 py-1 rounded-full">{e.type}</span>
+                          <span className="text-[9px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 px-3 py-1 rounded-full">{e.type}</span>
                         </div>
                         
                         <h4 className="font-black text-slate-900 text-xl md:text-3xl uppercase tracking-tighter leading-none group-hover:text-blue-600 transition-colors">
                           {e.title}
                         </h4>
                         
-                        {/* NEW: whitespace-pre-wrap ensures paragraph formatting stays exactly as the admin typed it */}
-                        <p className="text-xs md:text-sm text-slate-500 mt-3 leading-relaxed max-w-2xl whitespace-pre-wrap">
-                          {e.description || "Discover industrial excellence and technical mastery in this exclusive EITP session."}
-                        </p>
+                        {/* THE FIX: Expandable component with built-in link formatting */}
+                        <ExpandableDescription text={e.description || "Discover industrial excellence and technical mastery in this exclusive EITP session."} />
                       </div>
                       
-                      {/* Button Section (Fixed to side) */}
-                      <div className="shrink-0">
-                        <Link href="/activities" className="bg-slate-900 text-white font-black px-6 py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg uppercase text-[10px] tracking-widest">
+                      {/* Button Section (Self-starts so it doesn't stretch vertically) */}
+                      <div className="shrink-0 self-start md:self-center mt-2 md:mt-0">
+                        <Link href="/activities" className="bg-slate-900 text-white font-black px-6 py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg uppercase text-[10px] tracking-widest w-fit">
                           Details <ExternalLink size={14} />
                         </Link>
                       </div>

@@ -42,11 +42,11 @@ export default function MoUs() {
           <div key={mou.id} className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl border border-slate-100 transition-all flex flex-col hover:-translate-y-1">
             <div className="flex justify-between items-start mb-6">
               
-              {/* LOGO HANDLING WITH FALLBACK */}
+              {/* FIXED: LOGO HANDLING WITH FALLBACK */}
               <div className="relative">
-                {mou.logo ? (
+                {mou.logo_url ? (
                   <img 
-                    src={mou.logo.url} 
+                    src={mou.logo_url} 
                     alt={mou.partner} 
                     className="w-16 h-16 rounded-xl border border-slate-100 bg-white p-1 object-contain shadow-sm" 
                     onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
@@ -54,7 +54,7 @@ export default function MoUs() {
                 ) : null}
                 
                 {/* Fallback Icon (Shows if logo is missing OR broken) */}
-                <div className={`w-16 h-16 rounded-xl flex items-center justify-center shadow-sm ${mou.logoColor || 'bg-blue-100 text-blue-600'} ${mou.logo ? 'hidden' : 'flex'}`}>
+                <div className={`w-16 h-16 rounded-xl flex items-center justify-center shadow-sm ${mou.logoColor || 'bg-blue-100 text-blue-600'} ${mou.logo_url ? 'hidden' : 'flex'}`}>
                   <Building2 size={32} />
                 </div>
               </div>
@@ -65,10 +65,10 @@ export default function MoUs() {
             <h3 className="text-xl font-bold text-slate-900 mb-2">{mou.partner}</h3>
             <p className="text-slate-500 text-sm mb-4 line-clamp-3">{mou.description}</p>
 
-            {/* PHOTO HANDLING */}
-            {mou.signingPhoto && (
+            {/* FIXED: PHOTO HANDLING */}
+            {mou.photo_url && (
               <div className="mb-6 relative h-32 rounded-lg overflow-hidden border border-slate-200 group">
-                <img src={mou.signingPhoto.url} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" alt="Event" onError={(e) => e.target.style.display='none'} />
+                <img src={mou.photo_url} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" alt="Event" onError={(e) => e.target.style.display='none'} />
               </div>
             )}
 
@@ -78,8 +78,9 @@ export default function MoUs() {
               <div className="flex items-center"><Clock size={16} className="mr-3 text-slate-400"/> <span className="font-bold mr-2 text-slate-900">Duration:</span> {mou.duration}</div>
             </div>
 
-            {mou.document ? (
-              <a href={mou.document.url} download={mou.document.name} className="w-full py-3 flex items-center justify-center gap-2 border border-slate-200 rounded-lg text-slate-700 font-bold hover:bg-slate-900 hover:text-white transition-colors">
+            {/* FIXED: DOCUMENT HANDLING */}
+            {mou.doc_url ? (
+              <a href={mou.doc_url} target="_blank" rel="noopener noreferrer" className="w-full py-3 flex items-center justify-center gap-2 border border-slate-200 rounded-lg text-slate-700 font-bold hover:bg-slate-900 hover:text-white transition-colors">
                 <FileText size={18} /> Download Doc
               </a>
             ) : (

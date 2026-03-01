@@ -68,7 +68,7 @@ export default function Contact() {
                 </div>
                 <div className="ml-5">
                   <h3 className="font-bold text-slate-900 text-lg">Email Us</h3>
-                  <p className="text-slate-500 font-medium">eitp@rgukt.ac.in</p>
+                  <p className="text-slate-500 font-medium">eitpoffice@rgukt.in</p>
                 </div>
               </div>
               
@@ -78,7 +78,7 @@ export default function Contact() {
                 </div>
                 <div className="ml-5">
                   <h3 className="font-bold text-slate-900 text-lg">Call Support</h3>
-                  <p className="text-slate-500 font-medium">+91 98765 43210</p>
+                  <p className="text-slate-500 font-medium">N/A</p>
                 </div>
               </div>
 
@@ -87,9 +87,9 @@ export default function Contact() {
                   <MapPin size={24} />
                 </div>
                 <div className="ml-5">
-                  <h3 className="font-bold text-slate-900 text-lg">Visit Office</h3>
+                  <h3 className="font-bold text-slate-900 text-lg">Visit Head Office</h3>
                   <p className="text-slate-500 font-medium leading-relaxed">
-                    Room 101, Administrative Block,<br/>RGUKT AP Head Office.
+                    First floor, Administrative Block(I3),<br/>RGUKT NUZVID
                   </p>
                 </div>
               </div>

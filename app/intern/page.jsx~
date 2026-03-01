@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAdmin } from '../../context/AdminContext'; 
 import { 
   Upload, FileText, Image as ImageIcon, Camera, Bell, X, 
-  Trash2, Loader2, MessageCircle, Send, Paperclip, ChevronDown, CheckCircle, Clock, Users, User 
+  Trash2, Loader2, MessageCircle, Send, Paperclip, ChevronDown, CheckCircle, Clock, Users, User, Search 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -32,6 +32,7 @@ export default function InternDashboard() {
   
   const [hubMode, setHubMode] = useState('submissions');
   const [recipient, setRecipient] = useState(null);
+  const [searchQuery, setSearchQuery] = useState(''); // NEW: Search State
   
   const [chatMessage, setChatMessage] = useState('');
   const [chatFile, setChatFile] = useState(null);
@@ -60,6 +61,33 @@ export default function InternDashboard() {
   const internName = currentIntern ? currentIntern.name : "Guest Intern";
   const mySubmissions = submissions.filter(s => s.intern_name === internName);
   const activeSub = submissions.find(s => s.id === activeSubId);
+
+  // --- NEW: SORTED & FILTERED LISTS ---
+  const filteredSubmissions = useMemo(() => {
+    // 1. Get my submissions
+    let data = submissions.filter(s => s.intern_name === internName);
+    // 2. Reverse to show newest first
+    data = [...data].reverse();
+    // 3. Search Filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      data = data.filter(s => s.title.toLowerCase().includes(q));
+    }
+    return data;
+  }, [submissions, internName, searchQuery]);
+
+  const filteredContacts = useMemo(() => {
+    let contacts = [
+        { id: 'all_admins', name: 'Admin Team', type: 'direct_admin' },
+        ...interns.filter(i => i.id !== currentIntern?.id)
+    ];
+    // Search Filter
+    if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        contacts = contacts.filter(c => c.name.toLowerCase().includes(q));
+    }
+    return contacts;
+  }, [interns, currentIntern, searchQuery]);
 
   // --- FILTER DIRECT INBOX CHATS ---
   const activeDmChats = useMemo(() => {
@@ -241,19 +269,34 @@ export default function InternDashboard() {
             {/* Selection Sidebar */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[400px]">
                <div className="p-2 flex gap-1 bg-slate-50/50 border-b">
-                  <button onClick={() => { setHubMode('submissions'); setRecipient(null); }} className={`relative flex-1 py-2 text-xs font-black uppercase rounded-lg transition-all ${hubMode === 'submissions' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setHubMode('submissions'); setRecipient(null); setSearchQuery(''); }} className={`relative flex-1 py-2 text-xs font-black uppercase rounded-lg transition-all ${hubMode === 'submissions' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}>
                     Reports
                     {hasAnyUnreadSubmissions && <div className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]" />}
                   </button>
-                  <button onClick={() => { setHubMode('direct'); setActiveSubId(null); }} className={`relative flex-1 py-2 text-xs font-black uppercase rounded-lg transition-all ${hubMode === 'direct' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}>
+                  <button onClick={() => { setHubMode('direct'); setActiveSubId(null); setSearchQuery(''); }} className={`relative flex-1 py-2 text-xs font-black uppercase rounded-lg transition-all ${hubMode === 'direct' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}>
                     Inbox
                     {hasAnyUnreadDirect && <div className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]" />}
                   </button>
                </div>
+               
+               {/* SEARCH BAR (Added Inside Sidebar) */}
+               <div className="px-3 pt-2">
+                 <div className="relative">
+                   <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                   <input 
+                     type="text" 
+                     placeholder={hubMode === 'submissions' ? "Search Reports..." : "Search Contacts..."} 
+                     className="w-full pl-9 pr-4 py-2 bg-slate-100 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+                     value={searchQuery}
+                     onChange={e => setSearchQuery(e.target.value)}
+                   />
+                 </div>
+               </div>
+
                <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
                   {hubMode === 'submissions' ? (
                     <>
-                      {mySubmissions.length > 0 ? mySubmissions.map(sub => (
+                      {filteredSubmissions.length > 0 ? filteredSubmissions.map(sub => (
                         <div key={sub.id} onClick={() => setActiveSubId(sub.id)} className={`group relative p-3 mb-2 rounded-xl cursor-pointer border transition-all ${activeSubId === sub.id ? 'bg-blue-600 text-white shadow-md border-blue-600' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
                            <p className="font-bold truncate text-sm">{sub.title}</p>
                            <div className="flex justify-between items-center mt-2 opacity-70 text-[10px]">
@@ -266,26 +309,20 @@ export default function InternDashboard() {
                            )}
                            <button onClick={(e) => handleDeleteSubmission(e, sub.id)} className="absolute top-2 right-2 p-1 text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={12}/></button>
                         </div>
-                      )) : <p className="text-center text-xs text-slate-400 mt-10">No reports submitted.</p>}
+                      )) : <p className="text-center text-xs text-slate-400 mt-10">No reports found.</p>}
                     </>
                   ) : (
                     <div className="space-y-2">
                        <p className="text-[10px] font-black text-slate-400 uppercase px-1 pb-1">Contacts</p>
-                       <div onClick={() => setRecipient({ id: 'all_admins', name: 'Admin Team', type: 'direct_admin' })} className={`relative p-3 rounded-xl cursor-pointer border flex items-center gap-3 transition-all ${recipient?.id === 'all_admins' ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}>
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><Users size={16}/></div>
-                          <span className="text-sm font-bold">Admin Team</span>
-                          {/* RED DOT FOR ADMIN DMS */}
-                          {hasUnreadDirectMsg('all_admins') && recipient?.id !== 'all_admins' && <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />}
-                       </div>
-                       {interns.filter(i => i.id !== currentIntern?.id).map(peer => (
-                          <div key={peer.id} onClick={() => setRecipient({ id: peer.id, name: peer.name, type: 'intern_to_intern' })} className={`relative p-3 rounded-xl cursor-pointer border flex items-center gap-3 transition-all ${recipient?.id === peer.id ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}>
-                             <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><User size={16}/></div>
+                       {filteredContacts.map(contact => (
+                          <div key={contact.id} onClick={() => setRecipient({ id: contact.id, name: contact.name, type: contact.type })} className={`relative p-3 rounded-xl cursor-pointer border flex items-center gap-3 transition-all ${recipient?.id === contact.id ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}>
+                             <div className={`w-8 h-8 rounded-full flex items-center justify-center ${contact.id === 'all_admins' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}><Users size={16}/></div>
                              <div className="overflow-hidden">
-                                <p className="text-sm font-bold truncate">{peer.name}</p>
-                                <p className="text-[9px] text-slate-400 truncate uppercase">{peer.branch}</p>
+                                <p className="text-sm font-bold truncate">{contact.name}</p>
+                                {contact.id !== 'all_admins' && <p className="text-[9px] text-slate-400 truncate uppercase">{contact.branch}</p>}
                              </div>
-                             {/* RED DOT FOR PEER DMS */}
-                             {hasUnreadDirectMsg(peer.id) && recipient?.id !== peer.id && <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />}
+                             {/* RED DOT */}
+                             {hasUnreadDirectMsg(contact.id) && recipient?.id !== contact.id && <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />}
                           </div>
                        ))}
                     </div>
@@ -351,12 +388,11 @@ export default function InternDashboard() {
                      <div className="flex-1 flex flex-col bg-white h-full">
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                            {activeDmChats.map((msg, i) => {
-                              // THIS IS YOUR EXACT LOGIC FROM SUBMISSIONS TO MAKE INBOX WORK!
                               const isMe = msg.sender_name === internName;
                               return (
-                                <div key={msg.id || i} className={`flex flex-col group ${isMe ? 'items-end' : 'items-start'}`}>
-                                   <div className={`flex items-center gap-2 max-w-full ${isMe ? 'flex-row-reverse' : ''}`}>
-                                     <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none shadow-md' : 'bg-slate-100 text-slate-800 rounded-tl-none shadow-sm'}`}>
+                                <div key={msg.id || i} className={`w-full flex flex-col group ${isMe ? 'items-end' : 'items-start'}`}>
+                                   <div className={`flex items-center gap-2 w-fit max-w-[85%] ${isMe ? 'flex-row-reverse' : ''}`}>
+                                     <div className={`p-3 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
                                         {!isMe && <p className="text-[10px] font-black text-blue-600 mb-1 uppercase tracking-widest">{msg.sender_name}</p>}
                                         {msg.file_url && <a href={msg.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-2 bg-black/10 rounded-lg text-xs font-bold mb-2 w-fit hover:bg-black/20 transition-all"><Paperclip size={12}/> {msg.file_name}</a>}
                                         <p className="whitespace-pre-wrap">{msg.text}</p>
