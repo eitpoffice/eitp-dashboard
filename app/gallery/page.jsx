@@ -5,6 +5,7 @@ import { useAdmin } from '@/context/AdminContext'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { ImageIcon, Maximize2, X, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 
+
 export default function GalleryPage() {
   const { gallery = [] } = useAdmin();
   const [isMounted, setIsMounted] = useState(false);
