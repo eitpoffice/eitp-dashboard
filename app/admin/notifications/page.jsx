@@ -6,6 +6,7 @@ import { Bell, Trash2, Send, AlertCircle, Info, CheckCircle2, Loader2 } from 'lu
 export default function Notifications() {
   // FIX: Default 'notifications' to empty array []
   const { notifications = [], addNotification, deleteNotification } = useAdmin();
+
   
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
