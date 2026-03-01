@@ -140,19 +140,30 @@ export default function Home() {
   };
 
   // --- LOGIC: FLATTEN AND GET LATEST 5 INDIVIDUAL IMAGES ---
+  // --- LOGIC: FLATTEN AND GET LATEST 5 INDIVIDUAL IMAGES ---
   const displayImages = useMemo(() => {
     if (!isMounted || !gallery.length) return [];
     const allPhotos: any[] = [];
+    
     gallery.forEach((entry: any) => {
       const urls = entry.url ? entry.url.split(',') : [];
+      
       urls.forEach((url: string) => {
+        let safeUrl = url.trim();
+        
+        // THE FIX: Replace the blocked Supabase domain with your Vercel proxy
+        if (safeUrl.includes('supabase.co')) {
+           safeUrl = safeUrl.replace(/https:\/\/[a-zA-Z0-9]+\.supabase\.co/g, '/api/supabase');
+        }
+
         allPhotos.push({
           ...entry,
-          singleUrl: url.trim(),
+          singleUrl: safeUrl, // Now uses the safely masked URL!
           displayDate: formatDate(entry.date)
         });
       });
     });
+    
     return allPhotos
       .sort((a, b) => new Date(b.date || b.created_at).getTime() - new Date(a.date || a.created_at).getTime())
       .slice(0, 5);
