@@ -150,7 +150,7 @@ export default function Home() {
       urls.forEach((url: string) => {
         allPhotos.push({
           ...entry,
-          singleUrl: url.trim(), // ✨ Cleaned globally by AdminContext!
+          singleUrl: url.trim(), 
           displayDate: formatDate(entry.date)
         });
       });
@@ -161,28 +161,48 @@ export default function Home() {
       .slice(0, 5);
   }, [gallery, isMounted]);
 
-  // --- REFACTORED CATEGORIES FOR FILTERING ---
+  // --- UPDATED CATEGORIES FOR FILTERING (Start & Deadline Logic) ---
   const eventCategories = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayTime = today.getTime();
+    
     const upcoming: any[] = []; 
     const running: any[] = []; 
     const completed: any[] = [];
 
     events.forEach((e: any) => {
-      const eDate = new Date(e.date);
-      eDate.setHours(0, 0, 0, 0);
-      const eTime = eDate.getTime();
-      
-      if(isNaN(eTime)) return;
+      // Fallback: If no start_date is set, fallback to the old 'date'
+      const startDateStr = e.start_date || e.date;
+      // Fallback: If no deadline is set, assume it ends on the start date
+      const endDateStr = e.deadline || e.start_date || e.date;
 
-      if (eTime === todayTime) running.push(e);
-      else if (eTime > todayTime) upcoming.push(e);
-      else completed.push(e);
+      if (!startDateStr) return; // Skip completely empty events
+
+      const start = new Date(startDateStr);
+      start.setHours(0, 0, 0, 0);
+      const startTime = start.getTime();
+
+      const end = new Date(endDateStr);
+      end.setHours(23, 59, 59, 999);
+      const endTime = end.getTime();
+
+      if (todayTime >= startTime && todayTime <= endTime) {
+        running.push(e);
+      } else if (todayTime < startTime) {
+        upcoming.push(e);
+      } else {
+        completed.push(e);
+      }
     });
 
-    const sortByDateDesc = (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime();
+    // Sort by whichever start date is most recent
+    const sortByDateDesc = (a: any, b: any) => {
+      const timeA = new Date(a.start_date || a.date).getTime();
+      const timeB = new Date(b.start_date || b.date).getTime();
+      return timeB - timeA;
+    };
+
     return {
       running: running.sort(sortByDateDesc),
       upcoming: upcoming.sort(sortByDateDesc), 
@@ -194,7 +214,10 @@ export default function Home() {
   const tickerItems = useMemo(() => {
     let items: string[] = [];
     if (eventCategories.running.length > 0) {
-      eventCategories.running.forEach((e: any) => items.push(`ONGOING: ${e.title} (${formatDate(e.date)})`));
+      eventCategories.running.forEach((e: any) => {
+        const displayStr = e.start_date || e.date;
+        items.push(`ONGOING: ${e.title} (${formatDate(displayStr)})`);
+      });
     }
     if (Array.isArray(customTicker)) {
       customTicker.forEach((t: any) => { if (t.value?.trim()) items.push(t.value); });
@@ -458,14 +481,20 @@ export default function Home() {
                           <span className="bg-slate-900 text-yellow-400 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-[0.2em]">
                              {activeTab}
                           </span>
-                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{formatDate(e.date)}</span>
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                            {formatDate(e.start_date || e.date)}
+                            {/* NEW: Safely handles single day vs multi-day events */}
+                            {(e.deadline && e.deadline !== (e.start_date || e.date)) ? ` TO ${formatDate(e.deadline)}` : ''}
+                          </span>
                           <span className="hidden md:inline-block text-[9px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 px-3 py-1 rounded-full">{e.type}</span>
                         </div>
                         
                         <h4 className="font-black text-slate-900 text-xl md:text-3xl uppercase tracking-tighter leading-none group-hover:text-blue-600 transition-colors">
                           {e.title}
                         </h4>
-                        <p className="text-xs md:text-sm text-slate-500 mt-3 leading-relaxed max-w-2xl line-clamp-2">
+                        
+                        {/* NEW: whitespace-pre-wrap ensures paragraph formatting stays exactly as the admin typed it */}
+                        <p className="text-xs md:text-sm text-slate-500 mt-3 leading-relaxed max-w-2xl whitespace-pre-wrap">
                           {e.description || "Discover industrial excellence and technical mastery in this exclusive EITP session."}
                         </p>
                       </div>
