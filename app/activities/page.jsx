@@ -14,12 +14,25 @@ const slowFadeUp = {
   }
 };
 
+// HELPER: Format dates to short readable strings (e.g., "Mar 01, 2026")
+const formatReadableDate = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('default', { month: 'short', day: '2-digit', year: 'numeric' });
+};
+
 function EventCard({ event, style, status }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const Icon = style.icon;
 
   const isRunning = status === 'running';
   const isUpcoming = status === 'upcoming';
+
+  // Use the new dates or fallback to the old 'date'
+  const displayStartDateStr = event.start_date || event.date;
+  const displayEndDateStr = event.deadline || event.start_date || event.date;
+
+  const displayStartDate = new Date(displayStartDateStr);
 
   return (
     <motion.div 
@@ -46,24 +59,34 @@ function EventCard({ event, style, status }) {
       </div>
 
       <div className="flex flex-col md:flex-row gap-8 relative z-10 pt-4 md:pt-0">
-        {/* Date Badge */}
+        
+        {/* Date Badge (Shows Start Date) */}
         <div className={`shrink-0 flex md:flex-col items-center justify-center w-full md:w-24 h-20 md:h-32 rounded-2xl border text-center px-4 shadow-inner ${
           isRunning ? 'bg-red-50 border-red-100' :
           isUpcoming ? 'bg-blue-50 border-blue-100' : 
           'bg-slate-50 border-slate-100'
         }`}>
           <span className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">
-            {new Date(event.date).toLocaleString('default', { month: 'short' })}
+            {displayStartDate.toLocaleString('default', { month: 'short' })}
           </span>
           <span className={`text-4xl font-black ${isRunning ? 'text-red-600' : isUpcoming ? 'text-blue-600' : 'text-slate-800'}`}>
-            {new Date(event.date).getDate()}
+            {displayStartDate.getDate()}
           </span>
         </div>
 
         {/* Content Section */}
         <div className="flex-1">
-          <div className={`inline-flex items-center gap-2 mb-4 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border ${style.bg} ${style.color} ${style.border}`}>
-            <Icon size={14} /> {event.type || 'General'}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border ${style.bg} ${style.color} ${style.border}`}>
+              <Icon size={14} /> {event.type || 'General'}
+            </div>
+            
+            {/* NEW: Displays the full date range if it spans multiple days */}
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+              <Calendar size={12} />
+              {formatReadableDate(displayStartDateStr)} 
+              {displayEndDateStr && displayEndDateStr !== displayStartDateStr ? ` to ${formatReadableDate(displayEndDateStr)}` : ''}
+            </span>
           </div>
           
           <h3 className="text-2xl font-black text-slate-900 mb-3 group-hover:text-blue-600 transition-colors duration-300">
@@ -71,7 +94,8 @@ function EventCard({ event, style, status }) {
           </h3>
           
           <div className="relative">
-            <p className={`text-slate-600 leading-relaxed text-base transition-all duration-500 ${!isExpanded ? 'max-h-20 overflow-hidden line-clamp-3' : 'max-h-[1000px]'}`}>
+            {/* NEW: whitespace-pre-wrap added to respect admin's paragraph formatting */}
+            <p className={`text-slate-600 leading-relaxed text-base transition-all duration-500 whitespace-pre-wrap ${!isExpanded ? 'max-h-20 overflow-hidden line-clamp-3' : 'max-h-[1000px]'}`}>
               {event.description}
             </p>
             {!isExpanded && event.description?.length > 150 && (
@@ -106,33 +130,59 @@ export default function ActivitiesPage() {
     setIsMounted(true);
   }, []);
 
+  // --- UPDATED SORTING AND FILTERING LOGIC ---
   const filteredAndSortedEvents = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayTimestamp = today.getTime();
+    const todayTime = today.getTime();
 
-    let processed = [...events].sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Clean and sort events by start_date (newest first)
+    let processed = [...events].sort((a, b) => {
+      const timeA = new Date(a.start_date || a.date).getTime();
+      const timeB = new Date(b.start_date || b.date).getTime();
+      return timeB - timeA;
+    });
 
     return processed.filter(e => {
-      const eventDate = new Date(e.date);
-      eventDate.setHours(0, 0, 0, 0);
-      const eventTimestamp = eventDate.getTime();
+      const startDateStr = e.start_date || e.date;
+      const endDateStr = e.deadline || e.start_date || e.date;
 
-      if (activeFilter === 'running') return eventTimestamp === todayTimestamp;
-      if (activeFilter === 'upcoming') return eventTimestamp > todayTimestamp;
-      if (activeFilter === 'completed') return eventTimestamp < todayTimestamp;
+      if (!startDateStr) return false;
+
+      const start = new Date(startDateStr);
+      start.setHours(0, 0, 0, 0);
+      const startTime = start.getTime();
+
+      const end = new Date(endDateStr);
+      end.setHours(23, 59, 59, 999);
+      const endTime = end.getTime();
+
+      if (activeFilter === 'running') return todayTime >= startTime && todayTime <= endTime;
+      if (activeFilter === 'upcoming') return todayTime < startTime;
+      if (activeFilter === 'completed') return todayTime > endTime;
       return true; // 'all'
     });
   }, [events, activeFilter]);
 
-  const getEventStatus = (dateString) => {
+  // --- UPDATED STATUS CHECKER ---
+  const getEventStatus = (eventObj) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const eventDate = new Date(dateString);
-    eventDate.setHours(0, 0, 0, 0);
+    const todayTime = today.getTime();
 
-    if (eventDate.getTime() === today.getTime()) return 'running';
-    if (eventDate.getTime() > today.getTime()) return 'upcoming';
+    const startDateStr = eventObj.start_date || eventObj.date;
+    const endDateStr = eventObj.deadline || eventObj.start_date || eventObj.date;
+
+    const start = new Date(startDateStr);
+    start.setHours(0, 0, 0, 0);
+    const startTime = start.getTime();
+
+    const end = new Date(endDateStr);
+    end.setHours(23, 59, 59, 999);
+    const endTime = end.getTime();
+
+    if (todayTime >= startTime && todayTime <= endTime) return 'running';
+    if (todayTime < startTime) return 'upcoming';
     return 'completed';
   };
 
@@ -182,7 +232,7 @@ export default function ActivitiesPage() {
                 key={event.id} 
                 event={event} 
                 style={getTypeStyles(event.type)} 
-                status={getEventStatus(event.date)}
+                status={getEventStatus(event)} // Fixed to pass the full object
               />
             ))
           ) : (
